@@ -11,9 +11,9 @@
     <div class="filters">
       <div class="search-box">
         <i class="fas fa-search"></i>
-        <input 
-          v-model="searchQuery" 
-          type="text" 
+        <input
+          v-model="searchQuery"
+          type="text"
           placeholder="Поиск по жильцам..."
           @input="filterResidents"
         >
@@ -38,11 +38,11 @@
       <div v-if="filteredResidents.length === 0" class="no-results">
         <i class="fas fa-search"></i>
         <p>Ничего не найдено</p>
-      </div>
+    </div>
       <div v-else class="residents-grid">
         <div v-for="resident in filteredResidents" :key="resident.id" class="resident-card">
-          <div class="resident-info">
-            <h3>{{ resident.firstName }} {{ resident.lastName }}</h3>
+        <div class="resident-info">
+          <h3>{{ resident.firstName }} {{ resident.lastName }}</h3>
             <p><i class="fas fa-phone"></i> {{ resident.phone }}</p>
             <p v-if="resident.email"><i class="fas fa-envelope"></i> {{ resident.email }}</p>
             <p><i class="fas fa-building"></i> {{ getBuildingName(resident.apartmentId) }}</p>
@@ -50,15 +50,15 @@
             <p><i class="fas fa-calendar-alt"></i> Заселение: {{ formatDate(resident.moveInDate) }}</p>
             <p v-if="resident.moveOutDate">
               <i class="fas fa-calendar-times"></i> Выселение: {{ formatDate(resident.moveOutDate) }}
-            </p>
-          </div>
-          <div class="resident-actions">
+          </p>
+        </div>
+        <div class="resident-actions">
             <button @click="editResident(resident)" class="edit-button">
-              <i class="fas fa-edit"></i>
-            </button>
+            <i class="fas fa-edit"></i>
+          </button>
             <button @click="deleteResident(resident.id)" class="delete-button">
-              <i class="fas fa-trash"></i>
-            </button>
+            <i class="fas fa-trash"></i>
+          </button>
           </div>
         </div>
       </div>

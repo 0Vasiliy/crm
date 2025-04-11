@@ -2,10 +2,15 @@
   <div class="utilities">
     <div class="header">
       <h1>Коммунальные услуги</h1>
-      <button class="add-button" @click="showAddModal = true">
-        <i class="fas fa-plus"></i>
-        Добавить услугу
-      </button>
+      <div class="actions">
+        <button class="add-button" @click="showAddModal = true">
+          <i class="fas fa-plus"></i>
+          Добавить услугу
+        </button>
+        <button class="btn btn-success" @click="showInvoiceModal = true">
+          <i class="fas fa-file-invoice"></i> Выставить счёт
+        </button>
+      </div>
     </div>
 
     <div class="filters">
@@ -71,40 +76,127 @@
     <!-- Модальное окно для добавления/редактирования -->
     <div v-if="showAddModal" class="modal">
       <div class="modal-content">
-        <h2>{{ editingUtility ? 'Редактировать услугу' : 'Добавить услугу' }}</h2>
-        <form @submit.prevent="saveUtility">
-          <div class="form-group">
-            <label>Название услуги</label>
-            <input v-model="utilityForm.name" type="text" required>
-          </div>
-          <div class="form-group">
-            <label>Дом</label>
-            <select v-model="utilityForm.buildingId" required>
-              <option v-for="building in buildings" :key="building.id" :value="building.id">
-                {{ building.name }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Дата начала</label>
-            <input v-model="utilityForm.startDate" type="date" required>
-          </div>
-          <div class="form-group">
-            <label>Стоимость</label>
-            <input v-model="utilityForm.price" type="number" required>
-          </div>
-          <div class="form-group">
-            <label>Статус</label>
-            <select v-model="utilityForm.status" required>
-              <option value="active">Активна</option>
-              <option value="inactive">Неактивна</option>
-            </select>
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="showAddModal = false">Отмена</button>
-            <button type="submit">Сохранить</button>
-          </div>
-        </form>
+        <div class="modal-header">
+          <h2>{{ editingUtility ? 'Редактировать услугу' : 'Добавить услугу' }}</h2>
+          <button class="close-button" @click="showAddModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveUtility">
+            <div class="form-group">
+              <label>Название услуги</label>
+              <input v-model="utilityForm.name" type="text" required>
+            </div>
+            <div class="form-group">
+              <label>Дом</label>
+              <select v-model="utilityForm.buildingId" required>
+                <option v-for="building in buildings" :key="building.id" :value="building.id">
+                  {{ building.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Дата начала</label>
+              <input v-model="utilityForm.startDate" type="date" required>
+            </div>
+            <div class="form-group">
+              <label>Стоимость</label>
+              <input v-model="utilityForm.price" type="number" required>
+            </div>
+            <div class="form-group">
+              <label>Статус</label>
+              <select v-model="utilityForm.status" required>
+                <option value="active">Активна</option>
+                <option value="inactive">Неактивна</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" @click="showAddModal = false">Отмена</button>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно выставления счета -->
+    <div v-if="showInvoiceModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Выставить счёт</h2>
+          <button class="close-button" @click="showInvoiceModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveInvoice">
+            <div class="form-group">
+              <label>Дом</label>
+              <select v-model="invoiceForm.buildingId" @change="updateApartments" required>
+                <option value="">Выберите дом</option>
+                <option v-for="building in buildings" :key="building.id" :value="building.id">
+                  {{ building.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Квартира</label>
+              <select v-model="invoiceForm.apartmentId" @change="updateResidents" required>
+                <option value="">Выберите квартиру</option>
+                <option v-for="apartment in filteredApartments" :key="apartment.id" :value="apartment.id">
+                  Кв. {{ apartment.number }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Жилец</label>
+              <select v-model="invoiceForm.residentId" required>
+                <option value="">Выберите жильца</option>
+                <option v-for="resident in filteredResidents" :key="resident.id" :value="resident.id">
+                  {{ resident.firstName }} {{ resident.lastName }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Период</label>
+              <div class="period-select">
+                <select v-model="invoiceForm.month" required>
+                  <option v-for="(month, index) in months" :key="index" :value="index + 1">
+                    {{ month }}
+                  </option>
+                </select>
+                <select v-model="invoiceForm.year" required>
+                  <option v-for="year in years" :key="year" :value="year">
+                    {{ year }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="services-list">
+              <h3>Услуги</h3>
+              <div v-for="utility in utilities" :key="utility.id" class="service-item">
+                <div class="service-info">
+                  <span>{{ utility.name }}</span>
+                  <span class="rate">{{ utility.rate }} ₽/{{ utility.unit }}</span>
+                </div>
+                <div class="service-input">
+                  <input 
+                    type="number" 
+                    v-model="invoiceForm.services[utility.id]" 
+                    :placeholder="`Количество ${utility.unit}`"
+                    min="0"
+                    step="0.01"
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" @click="showInvoiceModal = false">Отмена</button>
+              <button type="submit" class="btn btn-primary">Выставить счёт</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -113,8 +205,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useBuildingsStore } from '../stores/buildings'
+import { useUtilitiesStore } from '../stores/utilities'
+import { useApartmentsStore } from '../stores/apartments'
+import { useResidentsStore } from '../stores/residents'
 
 const buildingsStore = useBuildingsStore()
+const utilitiesStore = useUtilitiesStore()
+const apartmentsStore = useApartmentsStore()
+const residentsStore = useResidentsStore()
+
 const loading = ref(false)
 const showAddModal = ref(false)
 const editingUtility = ref(null)
@@ -124,11 +223,25 @@ const selectedStatus = ref('')
 
 const utilityForm = ref({
   name: '',
-  buildingId: '',
-  startDate: '',
-  price: '',
-  status: 'active'
+  unit: '',
+  rate: ''
 })
+
+const showInvoiceModal = ref(false)
+const invoiceForm = ref({
+  buildingId: '',
+  apartmentId: '',
+  residentId: '',
+  month: new Date().getMonth() + 1,
+  year: new Date().getFullYear(),
+  services: {}
+})
+
+const months = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+]
+const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
 
 const utilities = ref([
   {
@@ -173,45 +286,116 @@ const formatPrice = (price) => {
   return price.toLocaleString('ru-RU')
 }
 
-const editUtility = (utility) => {
-  editingUtility.value = utility
-  utilityForm.value = { ...utility }
-  showAddModal.value = true
-}
+const filteredApartments = computed(() => {
+  if (!invoiceForm.value.buildingId) return []
+  return apartmentsStore.apartments.filter(apt => 
+    apt.buildingId === invoiceForm.value.buildingId
+  )
+})
 
-const saveUtility = () => {
-  if (editingUtility.value) {
-    const index = utilities.value.findIndex(u => u.id === editingUtility.value.id)
-    if (index !== -1) {
-      utilities.value[index] = { ...utilityForm.value, id: editingUtility.value.id }
-    }
-  } else {
-    const newId = Math.max(...utilities.value.map(u => u.id), 0) + 1
-    utilities.value.push({ ...utilityForm.value, id: newId })
-  }
+const filteredResidents = computed(() => {
+  if (!invoiceForm.value.apartmentId) return []
+  return residentsStore.residents.filter(resident => 
+    resident.apartmentId === invoiceForm.value.apartmentId
+  )
+})
+
+const closeAddModal = () => {
   showAddModal.value = false
   editingUtility.value = null
   utilityForm.value = {
     name: '',
-    buildingId: '',
-    startDate: '',
-    price: '',
-    status: 'active'
+    unit: '',
+    rate: ''
   }
 }
 
-const deleteUtility = (id) => {
+const editUtility = (utility) => {
+  editingUtility.value = utility
+  utilityForm.value = {
+    name: utility.name,
+    unit: utility.unit,
+    rate: utility.rate
+  }
+  showAddModal.value = true
+}
+
+const saveUtility = async () => {
+  try {
+    const utilityData = {
+      name: utilityForm.value.name.trim(),
+      unit: utilityForm.value.unit.trim(),
+      rate: parseFloat(utilityForm.value.rate),
+      status: 'active',
+      createdAt: new Date().toISOString()
+    }
+
+    if (editingUtility.value) {
+      await utilitiesStore.updateUtility(editingUtility.value.id, utilityData)
+    } else {
+      await utilitiesStore.addUtility(utilityData)
+    }
+    closeAddModal()
+  } catch (error) {
+    console.error('Error saving utility:', error)
+    alert('Ошибка при сохранении услуги: ' + error.message)
+  }
+}
+
+const deleteUtility = async (id) => {
   if (confirm('Вы уверены, что хотите удалить эту услугу?')) {
-    utilities.value = utilities.value.filter(u => u.id !== id)
+    try {
+      await utilitiesStore.deleteUtility(id)
+    } catch (error) {
+      console.error('Error deleting utility:', error)
+      alert('Ошибка при удалении услуги: ' + error.message)
+    }
+  }
+}
+
+const closeInvoiceModal = () => {
+  showInvoiceModal.value = false
+  invoiceForm.value = {
+    buildingId: '',
+    apartmentId: '',
+    residentId: '',
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    services: {}
+  }
+}
+
+const updateApartments = () => {
+  invoiceForm.value.apartmentId = ''
+  invoiceForm.value.residentId = ''
+}
+
+const updateResidents = () => {
+  invoiceForm.value.residentId = ''
+}
+
+const saveInvoice = async () => {
+  try {
+    console.log('Saving invoice:', invoiceForm.value)
+    closeInvoiceModal()
+  } catch (error) {
+    console.error('Error saving invoice:', error)
+    alert('Ошибка при сохранении счета: ' + error.message)
   }
 }
 
 onMounted(async () => {
   loading.value = true
   try {
-    await buildingsStore.fetchBuildings()
+    await Promise.all([
+      buildingsStore.fetchBuildings(),
+      utilitiesStore.fetchUtilities(),
+      apartmentsStore.fetchApartments(),
+      residentsStore.fetchResidents()
+    ])
   } catch (error) {
-    console.error('Error loading buildings:', error)
+    console.error('Error loading data:', error)
+    alert('Ошибка при загрузке данных: ' + error.message)
   } finally {
     loading.value = false
   }
@@ -386,6 +570,26 @@ onMounted(async () => {
   border-radius: 8px;
   width: 100%;
   max-width: 500px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.modal-body {
+  padding: 1rem;
 }
 
 .form-group {

@@ -70,7 +70,7 @@ export const useApartmentsStore = defineStore('apartments', () => {
       })
       // Обновляем локальное состояние
       const index = apartments.value.findIndex(a => a.id === id)
-      if (index !== -1) {
+        if (index !== -1) {
         apartments.value[index] = { ...apartments.value[index], ...apartmentData }
       }
     } catch (err) {
@@ -108,4 +108,4 @@ export const useApartmentsStore = defineStore('apartments', () => {
     deleteApartment,
     getApartmentsByBuilding
   }
-})
+}) 

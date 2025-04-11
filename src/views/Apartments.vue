@@ -4,8 +4,8 @@
       <h1>Квартиры</h1>
       <button class="add-button" @click="showAddModal = true">
         <i class="fas fa-plus"></i>
-        Добавить квартиру
-      </button>
+          Добавить квартиру
+        </button>
     </div>
 
     <div class="filters">
@@ -26,7 +26,7 @@
           </option>
         </select>
       </div>
-    </div>
+      </div>
 
     <div class="apartments-list" v-if="!loading">
       <div v-if="filteredApartments.length === 0" class="no-results">
@@ -102,7 +102,7 @@
           <div class="form-actions">
             <button type="button" @click="showAddModal = false">Отмена</button>
             <button type="submit">Сохранить</button>
-          </div>
+        </div>
         </form>
       </div>
     </div>
@@ -132,7 +132,7 @@
                 </button>
               </div>
             </div>
-          </div>
+        </div>
         </div>
         <div class="modal-actions">
           <button @click="showAddResidentModal = true" class="add-resident-button">

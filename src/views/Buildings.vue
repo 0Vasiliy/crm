@@ -25,7 +25,7 @@
         <i class="fas fa-search"></i>
         <p>Ничего не найдено</p>
       </div>
-      <div v-else class="buildings-grid">
+    <div v-else class="buildings-grid">
         <div v-for="building in filteredBuildings" :key="building.id" class="building-card">
           <div class="building-header">
             <h3>{{ building.name }}</h3>
@@ -33,7 +33,7 @@
               {{ building.status === 'active' ? 'Активен' : 'Неактивен' }}
             </span>
           </div>
-          <div class="building-info">
+        <div class="building-info">
             <p><i class="fas fa-map-marker-alt"></i> {{ building.address }}</p>
             <p><i class="fas fa-building"></i> {{ building.floors }} этажей</p>
             <p><i class="fas fa-door-open"></i> {{ building.apartmentsCount }} квартир</p>
