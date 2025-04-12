@@ -54,7 +54,7 @@
           <div class="utility-info">
             <p><i class="fas fa-building"></i> {{ getBuildingName(utility.buildingId) }}</p>
             <p><i class="fas fa-calendar"></i> {{ formatDate(utility.startDate) }}</p>
-            <p><i class="fas fa-money-bill"></i> {{ formatPrice(utility.price) }} ₽</p>
+            <p><i class="fas fa-money-bill"></i> {{ formatPrice(utility.rate) }} ₽</p>
           </div>
           <div class="utility-actions">
             <button @click="editUtility(utility)" class="edit-button">
@@ -101,8 +101,8 @@
               <input v-model="utilityForm.startDate" type="date" required>
             </div>
             <div class="form-group">
-              <label>Стоимость</label>
-              <input v-model="utilityForm.price" type="number" required>
+              <label>Тариф</label>
+              <input v-model="utilityForm.rate" type="number" required>
             </div>
             <div class="form-group">
               <label>Статус</label>
@@ -161,12 +161,12 @@
             <div class="form-group">
               <label>Период</label>
               <div class="period-select">
-                <select v-model="invoiceForm.month" required>
+                <select v-model="invoiceForm.period.month" required>
                   <option v-for="(month, index) in months" :key="index" :value="index + 1">
                     {{ month }}
                   </option>
                 </select>
-                <select v-model="invoiceForm.year" required>
+                <select v-model="invoiceForm.period.year" required>
                   <option v-for="year in years" :key="year" :value="year">
                     {{ year }}
                   </option>
@@ -214,53 +214,46 @@ const utilitiesStore = useUtilitiesStore()
 const apartmentsStore = useApartmentsStore()
 const residentsStore = useResidentsStore()
 
-const loading = ref(false)
+// Состояния для модальных окон
 const showAddModal = ref(false)
+const showInvoiceModal = ref(false)
 const editingUtility = ref(null)
+
+// Состояния для фильтров
 const searchQuery = ref('')
 const selectedBuilding = ref('')
 const selectedStatus = ref('')
 
+// Формы
 const utilityForm = ref({
   name: '',
   unit: '',
-  rate: ''
+  rate: '',
+  status: 'active'
 })
 
-const showInvoiceModal = ref(false)
 const invoiceForm = ref({
   buildingId: '',
   apartmentId: '',
   residentId: '',
-  month: new Date().getMonth() + 1,
-  year: new Date().getFullYear(),
-  services: {}
+  period: {
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear()
+  },
+  services: []
 })
 
+// Списки для выбора периода
 const months = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
 ]
 const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
 
-const utilities = ref([
-  {
-    id: 1,
-    name: 'Отопление',
-    buildingId: 1,
-    startDate: '2024-01-01',
-    price: 1500,
-    status: 'active'
-  },
-  {
-    id: 2,
-    name: 'Водоснабжение',
-    buildingId: 1,
-    startDate: '2024-01-01',
-    price: 800,
-    status: 'active'
-  }
-])
+// Вычисляемые свойства
+const utilities = computed(() => utilitiesStore.utilities)
+const loading = computed(() => utilitiesStore.loading)
+const buildings = computed(() => buildingsStore.buildings)
 
 const filteredUtilities = computed(() => {
   return utilities.value.filter(utility => {
@@ -271,19 +264,32 @@ const filteredUtilities = computed(() => {
   })
 })
 
-const buildings = computed(() => buildingsStore.buildings)
-
 const getBuildingName = (buildingId) => {
   const building = buildings.value.find(b => b.id === buildingId)
-  return building ? building.name : 'Неизвестный дом'
+  return building ? building.name : 'Неизвестное здание'
+}
+
+const getApartmentNumber = (apartmentId) => {
+  const apartment = apartmentsStore.apartments.find(a => a.id === apartmentId)
+  return apartment ? apartment.number : 'Неизвестная квартира'
+}
+
+const getResidentName = (residentId) => {
+  const resident = residentsStore.residents.find(r => r.id === residentId)
+  return resident ? `${resident.lastName} ${resident.firstName}` : 'Неизвестный жилец'
 }
 
 const formatDate = (date) => {
   return new Date(date).toLocaleDateString('ru-RU')
 }
 
-const formatPrice = (price) => {
-  return price.toLocaleString('ru-RU')
+const formatPrice = (value) => {
+  if (value === undefined || value === null) return '0.00'
+  const num = typeof value === 'string' ? parseFloat(value) : value
+  return isNaN(num) ? '0.00' : num.toLocaleString('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })
 }
 
 const filteredApartments = computed(() => {
@@ -306,7 +312,8 @@ const closeAddModal = () => {
   utilityForm.value = {
     name: '',
     unit: '',
-    rate: ''
+    rate: '',
+    status: 'active'
   }
 }
 
@@ -315,19 +322,20 @@ const editUtility = (utility) => {
   utilityForm.value = {
     name: utility.name,
     unit: utility.unit,
-    rate: utility.rate
+    rate: utility.rate,
+    status: utility.status
   }
   showAddModal.value = true
 }
 
 const saveUtility = async () => {
+ 
   try {
     const utilityData = {
       name: utilityForm.value.name.trim(),
       unit: utilityForm.value.unit.trim(),
       rate: parseFloat(utilityForm.value.rate),
-      status: 'active',
-      createdAt: new Date().toISOString()
+      status: utilityForm.value.status
     }
 
     if (editingUtility.value) {
@@ -335,10 +343,12 @@ const saveUtility = async () => {
     } else {
       await utilitiesStore.addUtility(utilityData)
     }
-    closeAddModal()
+
+    showAddModal.value = false
+    resetForm()
   } catch (error) {
     console.error('Error saving utility:', error)
-    alert('Ошибка при сохранении услуги: ' + error.message)
+    alert('Ошибка при сохранении услуги')
   }
 }
 
@@ -348,7 +358,7 @@ const deleteUtility = async (id) => {
       await utilitiesStore.deleteUtility(id)
     } catch (error) {
       console.error('Error deleting utility:', error)
-      alert('Ошибка при удалении услуги: ' + error.message)
+      alert('Ошибка при удалении услуги')
     }
   }
 }
@@ -359,9 +369,11 @@ const closeInvoiceModal = () => {
     buildingId: '',
     apartmentId: '',
     residentId: '',
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    services: {}
+    period: {
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear()
+    },
+    services: []
   }
 }
 
@@ -384,20 +396,33 @@ const saveInvoice = async () => {
   }
 }
 
+const resetForm = () => {
+  utilityForm.value = {
+    name: '',
+    unit: '',
+    rate: '',
+    status: 'active'
+  }
+  editingUtility.value = null
+}
+
+const filterUtilities = () => {
+  // Implementation of filterUtilities method
+}
+
 onMounted(async () => {
-  loading.value = true
   try {
-    await Promise.all([
-      buildingsStore.fetchBuildings(),
-      utilitiesStore.fetchUtilities(),
-      apartmentsStore.fetchApartments(),
-      residentsStore.fetchResidents()
-    ])
+    // Загружаем данные последовательно
+    console.log('Loading utilities...')
+    await utilitiesStore.fetchUtilities()
+    console.log('Utilities loaded:', utilitiesStore.utilities.value)
+    
+    await buildingsStore.fetchBuildings()
+    await apartmentsStore.fetchApartments()
+    await residentsStore.fetchResidents()
   } catch (error) {
     console.error('Error loading data:', error)
     alert('Ошибка при загрузке данных: ' + error.message)
-  } finally {
-    loading.value = false
   }
 })
 </script>
