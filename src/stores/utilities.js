@@ -28,6 +28,7 @@ export const useUtilitiesStore = defineStore('utilities', () => {
         return {
           id: doc.id,
           name: data.name || '',
+          buildingId: data.buildingId || '',
           unit: data.unit || '',
           rate: data.rate || 0,
           status: data.status || 'active',
@@ -49,10 +50,11 @@ export const useUtilitiesStore = defineStore('utilities', () => {
     try {
       const dataToSave = {
         name: utilityData.name.trim(),
+        buildingId: utilityData.buildingId,
         unit: utilityData.unit.trim(),
         rate: parseFloat(utilityData.rate),
         status: utilityData.status || 'active',
-        createdAt: new Date().toISOString()
+        createdAt: utilityData.createdAt || new Date().toISOString()
       }
 
       const docRef = await addDoc(collection(db, 'utilities'), dataToSave)
@@ -72,9 +74,11 @@ export const useUtilitiesStore = defineStore('utilities', () => {
     try {
       const dataToUpdate = {
         name: utilityData.name.trim(),
+        buildingId: utilityData.buildingId,
         unit: utilityData.unit.trim(),
         rate: parseFloat(utilityData.rate),
         status: utilityData.status,
+        createdAt: utilityData.createdAt,
         updatedAt: new Date().toISOString()
       }
 
