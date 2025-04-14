@@ -262,9 +262,17 @@
           <div v-for="invoice in buildingInvoices" :key="invoice.id" class="invoice-card">
             <div class="invoice-header">
               <h4>Счет за {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</h4>
-              <span :class="['status-badge', invoice.status]">
-                {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
-              </span>
+              <div class="invoice-actions">
+                <button @click="editInvoice(invoice)" class="edit-button">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button @click="deleteInvoice(invoice.id)" class="delete-button">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <span :class="['status-badge', invoice.status]">
+                  {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
+                </span>
+              </div>
             </div>
             <div class="invoice-info">
               <p><i class="fas fa-calendar"></i> {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</p>
@@ -283,9 +291,17 @@
           <div v-for="invoice in apartmentInvoices" :key="invoice.id" class="invoice-card">
             <div class="invoice-header">
               <h4>Счет за {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</h4>
-              <span :class="['status-badge', invoice.status]">
-                {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
-              </span>
+              <div class="invoice-actions">
+                <button @click="editInvoice(invoice)" class="edit-button">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button @click="deleteInvoice(invoice.id)" class="delete-button">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <span :class="['status-badge', invoice.status]">
+                  {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
+                </span>
+              </div>
             </div>
             <div class="invoice-info">
               <p><i class="fas fa-calendar"></i> {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</p>
@@ -303,9 +319,17 @@
           <div v-for="invoice in residentInvoices" :key="invoice.id" class="invoice-card">
             <div class="invoice-header">
               <h4>Счет за {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</h4>
-              <span :class="['status-badge', invoice.status]">
-                {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
-              </span>
+              <div class="invoice-actions">
+                <button @click="editInvoice(invoice)" class="edit-button">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button @click="deleteInvoice(invoice.id)" class="delete-button">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <span :class="['status-badge', invoice.status]">
+                  {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
+                </span>
+              </div>
             </div>
             <div class="invoice-info">
               <p><i class="fas fa-calendar"></i> {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</p>
@@ -337,6 +361,7 @@ const invoicesStore = useInvoicesStore()
 const showAddModal = ref(false)
 const showInvoiceModal = ref(false)
 const editingUtility = ref(null)
+const editingInvoice = ref(null)
 
 // Состояния для фильтров
 const searchQuery = ref('')
@@ -422,16 +447,16 @@ const formatPrice = (value) => {
 }
 
 const filteredApartments = computed(() => {
-  if (!invoiceForm.value.buildingId) return []
-  return apartmentsStore.apartments.filter(apt => 
-    apt.buildingId === invoiceForm.value.buildingId
+  if (!selectedBuilding.value) return []
+  return apartmentsStore.apartments.filter(apartment => 
+    apartment.buildingId === selectedBuilding.value
   )
 })
 
 const filteredResidents = computed(() => {
-  if (!invoiceForm.value.apartmentId) return []
+  if (!selectedApartment.value) return []
   return residentsStore.residents.filter(resident => 
-    resident.apartmentId === invoiceForm.value.apartmentId
+    resident.apartmentId === selectedApartment.value
   )
 })
 
@@ -502,6 +527,7 @@ const deleteUtility = async (id) => {
 
 const closeInvoiceModal = () => {
   showInvoiceModal.value = false
+  editingInvoice.value = null
   invoiceForm.value = {
     buildingId: '',
     apartmentId: '',
@@ -510,7 +536,8 @@ const closeInvoiceModal = () => {
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear()
     },
-    services: {}
+    services: {},
+    status: 'pending'
   }
 }
 
@@ -547,20 +574,26 @@ const saveInvoice = async () => {
       apartmentTotal: calculateApartmentTotal.value,
       totalDebt: calculateTotalDebt.value,
       total: calculateTotal.value,
-      status: 'pending'
+      status: invoiceForm.value.status || 'pending'
     }
 
-    console.log('Saving invoice:', invoiceData)
-    await invoicesStore.addInvoice(invoiceData)
-    
+    if (editingInvoice.value) {
+      await invoicesStore.updateInvoice(editingInvoice.value.id, invoiceData)
+      console.log('Invoice updated:', invoiceData)
+    } else {
+      await invoicesStore.addInvoice(invoiceData)
+      console.log('Invoice added:', invoiceData)
+    }
+
     // Обновляем данные после сохранения
     await invoicesStore.fetchInvoices()
     
-    // Закрываем модальное окно
+    // Закрываем модальное окно и сбрасываем форму
     closeInvoiceModal()
+    editingInvoice.value = null
     
     // Показываем уведомление об успешном сохранении
-    alert('Счет успешно сохранен')
+    alert(editingInvoice.value ? 'Счет успешно обновлен' : 'Счет успешно сохранен')
   } catch (error) {
     console.error('Error saving invoice:', error)
     alert('Ошибка при сохранении счета: ' + error.message)
@@ -667,6 +700,33 @@ const updateSelectedResident = (residentId) => {
 watch(() => invoicesStore.invoices, (newInvoices) => {
   console.log('Invoices updated:', newInvoices)
 }, { deep: true })
+
+// Добавляем методы для работы со счетами
+const editInvoice = (invoice) => {
+  editingInvoice.value = invoice
+  invoiceForm.value = {
+    buildingId: invoice.buildingId,
+    apartmentId: invoice.apartmentId,
+    residentId: invoice.residentId,
+    period: invoice.period,
+    services: { ...invoice.services },
+    status: invoice.status
+  }
+  showInvoiceModal.value = true
+}
+
+const deleteInvoice = async (invoiceId) => {
+  if (confirm('Вы уверены, что хотите удалить этот счет?')) {
+    try {
+      await invoicesStore.deleteInvoice(invoiceId)
+      // Обновляем данные после удаления
+      await invoicesStore.fetchInvoices()
+    } catch (error) {
+      console.error('Error deleting invoice:', error)
+      alert('Ошибка при удалении счета: ' + error.message)
+    }
+  }
+}
 
 onMounted(async () => {
   try {
@@ -1183,6 +1243,41 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.invoice-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.invoice-actions button {
+  padding: 0.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invoice-actions .edit-button {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.invoice-actions .delete-button {
+  background: #ffebee;
+  color: #d32f2f;
+}
+
+.invoice-actions .edit-button:hover {
+  background: #bbdefb;
+}
+
+.invoice-actions .delete-button:hover {
+  background: #ffcdd2;
 }
 
 .status-badge {
