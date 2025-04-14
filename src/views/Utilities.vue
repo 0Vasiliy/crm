@@ -217,20 +217,121 @@
         </div>
       </div>
     </div>
+
+    <!-- Добавляем секцию для отображения счетов -->
+    <div class="invoices-section" v-if="!loading">
+      <h2>Счета</h2>
+      
+      <!-- Фильтры для счетов -->
+      <div class="invoice-filters">
+        <div class="form-group">
+          <label>Здание</label>
+          <select v-model="selectedBuilding" @change="updateSelectedBuilding($event.target.value)">
+            <option value="">Выберите здание</option>
+            <option v-for="building in buildings" :key="building.id" :value="building.id">
+              {{ building.name }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="form-group" v-if="selectedBuilding">
+          <label>Квартира</label>
+          <select v-model="selectedApartment" @change="updateSelectedApartment($event.target.value)">
+            <option value="">Выберите квартиру</option>
+            <option v-for="apartment in filteredApartments" :key="apartment.id" :value="apartment.id">
+              {{ apartment.number }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="form-group" v-if="selectedApartment">
+          <label>Жилец</label>
+          <select v-model="selectedResident" @change="updateSelectedResident($event.target.value)">
+            <option value="">Выберите жильца</option>
+            <option v-for="resident in filteredResidents" :key="resident.id" :value="resident.id">
+              {{ resident.lastName }} {{ resident.firstName }}
+            </option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Счета по дому -->
+      <div v-if="selectedBuilding" class="invoices-list">
+        <h3>Счета по дому: {{ getBuildingName(selectedBuilding) }}</h3>
+        <div class="invoices-grid">
+          <div v-for="invoice in buildingInvoices" :key="invoice.id" class="invoice-card">
+            <div class="invoice-header">
+              <h4>Счет за {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</h4>
+              <span :class="['status-badge', invoice.status]">
+                {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
+              </span>
+            </div>
+            <div class="invoice-info">
+              <p><i class="fas fa-calendar"></i> {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</p>
+              <p><i class="fas fa-home"></i> Кв. {{ getApartmentNumber(invoice.apartmentId) }}</p>
+              <p><i class="fas fa-user"></i> {{ getResidentName(invoice.residentId) }}</p>
+              <p><i class="fas fa-money-bill"></i> {{ formatPrice(invoice.total) }} ₽</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Счета по квартире -->
+      <div v-if="selectedApartment" class="invoices-list">
+        <h3>Счета по квартире: {{ getApartmentNumber(selectedApartment) }}</h3>
+        <div class="invoices-grid">
+          <div v-for="invoice in apartmentInvoices" :key="invoice.id" class="invoice-card">
+            <div class="invoice-header">
+              <h4>Счет за {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</h4>
+              <span :class="['status-badge', invoice.status]">
+                {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
+              </span>
+            </div>
+            <div class="invoice-info">
+              <p><i class="fas fa-calendar"></i> {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</p>
+              <p><i class="fas fa-user"></i> {{ getResidentName(invoice.residentId) }}</p>
+              <p><i class="fas fa-money-bill"></i> {{ formatPrice(invoice.total) }} ₽</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Счета по жильцу -->
+      <div v-if="selectedResident" class="invoices-list">
+        <h3>Счета по жильцу: {{ getResidentName(selectedResident) }}</h3>
+        <div class="invoices-grid">
+          <div v-for="invoice in residentInvoices" :key="invoice.id" class="invoice-card">
+            <div class="invoice-header">
+              <h4>Счет за {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</h4>
+              <span :class="['status-badge', invoice.status]">
+                {{ invoice.status === 'pending' ? 'Ожидает оплаты' : 'Оплачен' }}
+              </span>
+            </div>
+            <div class="invoice-info">
+              <p><i class="fas fa-calendar"></i> {{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</p>
+              <p><i class="fas fa-home"></i> Кв. {{ getApartmentNumber(invoice.apartmentId) }}</p>
+              <p><i class="fas fa-money-bill"></i> {{ formatPrice(invoice.total) }} ₽</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useBuildingsStore } from '../stores/buildings'
 import { useUtilitiesStore } from '../stores/utilities'
 import { useApartmentsStore } from '../stores/apartments'
 import { useResidentsStore } from '../stores/residents'
+import { useInvoicesStore } from '../stores/invoices'
 
 const buildingsStore = useBuildingsStore()
 const utilitiesStore = useUtilitiesStore()
 const apartmentsStore = useApartmentsStore()
 const residentsStore = useResidentsStore()
+const invoicesStore = useInvoicesStore()
 
 // Состояния для модальных окон
 const showAddModal = ref(false)
@@ -240,6 +341,8 @@ const editingUtility = ref(null)
 // Состояния для фильтров
 const searchQuery = ref('')
 const selectedBuilding = ref('')
+const selectedApartment = ref('')
+const selectedResident = ref('')
 const selectedStatus = ref('')
 
 // Формы
@@ -422,8 +525,42 @@ const loadResidents = () => {
 
 const saveInvoice = async () => {
   try {
-    console.log('Saving invoice:', invoiceForm.value)
+    // Проверяем заполнение обязательных полей
+    if (!invoiceForm.value.buildingId || !invoiceForm.value.apartmentId || !invoiceForm.value.residentId) {
+      alert('Пожалуйста, заполните все обязательные поля')
+      return
+    }
+
+    // Проверяем, что выбраны услуги
+    if (Object.keys(invoiceForm.value.services).length === 0) {
+      alert('Пожалуйста, укажите количество хотя бы для одной услуги')
+      return
+    }
+
+    const invoiceData = {
+      buildingId: invoiceForm.value.buildingId,
+      apartmentId: invoiceForm.value.apartmentId,
+      residentId: invoiceForm.value.residentId,
+      period: invoiceForm.value.period,
+      services: invoiceForm.value.services,
+      buildingTotal: calculateBuildingTotal.value,
+      apartmentTotal: calculateApartmentTotal.value,
+      totalDebt: calculateTotalDebt.value,
+      total: calculateTotal.value,
+      status: 'pending'
+    }
+
+    console.log('Saving invoice:', invoiceData)
+    await invoicesStore.addInvoice(invoiceData)
+    
+    // Обновляем данные после сохранения
+    await invoicesStore.fetchInvoices()
+    
+    // Закрываем модальное окно
     closeInvoiceModal()
+    
+    // Показываем уведомление об успешном сохранении
+    alert('Счет успешно сохранен')
   } catch (error) {
     console.error('Error saving invoice:', error)
     alert('Ошибка при сохранении счета: ' + error.message)
@@ -448,35 +585,98 @@ const filterUtilities = () => {
 
 // Вычисляемые свойства для сумм
 const calculateBuildingTotal = computed(() => {
-  // Здесь будет логика расчета суммы по дому
-  return 0
+  if (!invoiceForm.value.buildingId) return 0
+  
+  let total = 0
+  for (const [serviceId, quantity] of Object.entries(invoiceForm.value.services)) {
+    const service = utilitiesStore.utilities.find(s => s.id === serviceId)
+    if (service && service.buildingId === invoiceForm.value.buildingId) {
+      total += service.rate * (quantity || 0)
+    }
+  }
+  return total
 })
 
 const calculateApartmentTotal = computed(() => {
-  // Здесь будет логика расчета суммы по квартире
-  return 0
+  if (!invoiceForm.value.apartmentId) return 0
+  
+  let total = 0
+  for (const [serviceId, quantity] of Object.entries(invoiceForm.value.services)) {
+    const service = utilitiesStore.utilities.find(s => s.id === serviceId)
+    if (service) {
+      total += service.rate * (quantity || 0)
+    }
+  }
+  return total
 })
 
 const calculateTotalDebt = computed(() => {
-  // Здесь будет логика расчета общего долга
-  return 0
+  if (!invoiceForm.value.apartmentId) return 0
+  return invoicesStore.getTotalDebtByApartment(invoiceForm.value.apartmentId)
 })
 
 const calculateTotal = computed(() => {
-  // Здесь будет логика расчета итоговой суммы
-  return 0
+  return calculateApartmentTotal.value + calculateTotalDebt.value
 })
+
+// Добавляем реактивность на изменение количества услуг
+watch(() => invoiceForm.value.services, () => {
+  // При изменении количества услуг пересчитываем суммы
+  console.log('Services updated, recalculating totals')
+}, { deep: true })
+
+// Обновляем вычисляемые свойства для отображения счетов
+const buildingInvoices = computed(() => {
+  if (!selectedBuilding.value) return []
+  const invoices = invoicesStore.getInvoicesByBuilding(selectedBuilding.value)
+  console.log('Building invoices:', invoices)
+  return invoices
+})
+
+const apartmentInvoices = computed(() => {
+  if (!selectedApartment.value) return []
+  const invoices = invoicesStore.getInvoicesByApartment(selectedApartment.value)
+  console.log('Apartment invoices:', invoices)
+  return invoices
+})
+
+const residentInvoices = computed(() => {
+  if (!selectedResident.value) return []
+  const invoices = invoicesStore.getInvoicesByResident(selectedResident.value)
+  console.log('Resident invoices:', invoices)
+  return invoices
+})
+
+// Добавляем методы для обновления выбранных значений
+const updateSelectedBuilding = (buildingId) => {
+  selectedBuilding.value = buildingId
+  selectedApartment.value = ''
+  selectedResident.value = ''
+}
+
+const updateSelectedApartment = (apartmentId) => {
+  selectedApartment.value = apartmentId
+  selectedResident.value = ''
+}
+
+const updateSelectedResident = (residentId) => {
+  selectedResident.value = residentId
+}
+
+// Добавляем watch для отслеживания изменений в store
+watch(() => invoicesStore.invoices, (newInvoices) => {
+  console.log('Invoices updated:', newInvoices)
+}, { deep: true })
 
 onMounted(async () => {
   try {
-    // Загружаем данные последовательно
-    console.log('Loading utilities...')
+    console.log('Loading data...')
     await utilitiesStore.fetchUtilities()
-    console.log('Utilities loaded:', utilitiesStore.utilities.value)
-    
     await buildingsStore.fetchBuildings()
     await apartmentsStore.fetchApartments()
     await residentsStore.fetchResidents()
+    await invoicesStore.fetchInvoices()
+    console.log('Data loaded successfully')
   } catch (error) {
     console.error('Error loading data:', error)
     alert('Ошибка при загрузке данных: ' + error.message)
@@ -931,5 +1131,105 @@ onMounted(async () => {
   .service-item input {
     width: 100%;
   }
+}
+
+.invoices-section {
+  margin-top: 2rem;
+}
+
+.invoices-list {
+  margin-bottom: 2rem;
+}
+
+.invoices-list h3 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.invoices-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.invoice-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.invoice-header h4 {
+  margin: 0;
+  color: #333;
+}
+
+.invoice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.invoice-info p {
+  margin: 0;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+.status-badge.pending {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.status-badge.paid {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+@media (max-width: 768px) {
+  .invoices-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.invoice-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.invoice-filters .form-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.invoice-filters label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.invoice-filters select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
 }
 </style> 

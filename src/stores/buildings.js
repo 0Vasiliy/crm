@@ -31,7 +31,7 @@ export const useBuildingsStore = defineStore('buildings', () => {
       error.value = err.message
       console.error('Error loading buildings:', err)
       throw err
-    } finally {
+      } finally {
       loading.value = false
     }
   }
@@ -63,7 +63,7 @@ export const useBuildingsStore = defineStore('buildings', () => {
       })
       // Обновляем локальное состояние
       const index = buildings.value.findIndex(b => b.id === id)
-      if (index !== -1) {
+        if (index !== -1) {
         buildings.value[index] = { ...buildings.value[index], ...buildingData }
       }
     } catch (err) {
@@ -95,4 +95,4 @@ export const useBuildingsStore = defineStore('buildings', () => {
     updateBuilding,
     deleteBuilding
   }
-})
+}) 
