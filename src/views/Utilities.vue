@@ -146,7 +146,7 @@
               <option v-for="apartment in filteredApartments" 
                       :key="apartment.id" 
                       :value="apartment.id">
-                {{ apartment.number }}
+                Кв. {{ apartment.number }} - {{ getApartmentResidents(apartment.id).length }} жильцов
               </option>
             </select>
           </div>
@@ -157,7 +157,7 @@
               <option v-for="resident in filteredResidents" 
                       :key="resident.id" 
                       :value="resident.id">
-                {{ resident.lastName }} {{ resident.firstName }}
+                {{ resident.lastName }} {{ resident.firstName }} - {{ resident.phone }}
               </option>
             </select>
           </div>
@@ -239,7 +239,7 @@
           <select v-model="selectedApartment" @change="updateSelectedApartment($event.target.value)">
             <option value="">Выберите квартиру</option>
             <option v-for="apartment in filteredApartments" :key="apartment.id" :value="apartment.id">
-              {{ apartment.number }}
+              Кв. {{ apartment.number }} - {{ getApartmentResidents(apartment.id).length }} жильцов
             </option>
           </select>
         </div>
@@ -249,12 +249,28 @@
           <select v-model="selectedResident" @change="updateSelectedResident($event.target.value)">
             <option value="">Выберите жильца</option>
             <option v-for="resident in filteredResidents" :key="resident.id" :value="resident.id">
-              {{ resident.lastName }} {{ resident.firstName }}
+              {{ resident.lastName }} {{ resident.firstName }} - {{ resident.phone }}
             </option>
           </select>
         </div>
       </div>
       
+      <!-- Информация о жильцах выбранной квартиры -->
+      <div v-if="selectedApartment && !selectedResident" class="residents-info">
+        <h3>Жильцы квартиры {{ getApartmentNumber(selectedApartment) }}</h3>
+        <div class="residents-grid">
+          <div v-for="resident in filteredResidents" :key="resident.id" class="resident-card">
+            <div class="resident-info">
+              <h4>{{ resident.lastName }} {{ resident.firstName }}</h4>
+              <p><i class="fas fa-phone"></i> {{ resident.phone }}</p>
+              <p><i class="fas fa-envelope"></i> {{ resident.email || 'Не указан' }}</p>
+              <p><i class="fas fa-calendar-check"></i> Заселение: {{ formatDate(resident.moveInDate) }}</p>
+              <p v-if="resident.moveOutDate"><i class="fas fa-calendar-times"></i> Выселение: {{ formatDate(resident.moveOutDate) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Счета по дому -->
       <div v-if="selectedBuilding" class="invoices-list">
         <h3>Счета по дому: {{ getBuildingName(selectedBuilding) }}</h3>
@@ -726,6 +742,11 @@ const deleteInvoice = async (invoiceId) => {
       alert('Ошибка при удалении счета: ' + error.message)
     }
   }
+}
+
+// Добавьте новую функцию для получения списка жильцов квартиры
+const getApartmentResidents = (apartmentId) => {
+  return residentsStore.residents.filter(resident => resident.apartmentId === apartmentId)
 }
 
 onMounted(async () => {
@@ -1326,5 +1347,51 @@ onMounted(async () => {
   border: 1px solid #ddd;
   border-radius: 4px;
   background-color: white;
+}
+
+.residents-info {
+  margin: 2rem 0;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.residents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.resident-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.resident-info {
+  h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--primary-color);
+  }
+
+  p {
+    margin: 0.25rem 0;
+    color: #666;
+    
+    i {
+      width: 20px;
+      color: var(--primary-color);
+    }
+  }
+}
+
+.form-group select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-top: 0.25rem;
 }
 </style> 
