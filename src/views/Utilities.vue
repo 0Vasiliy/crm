@@ -560,17 +560,41 @@ const closeInvoiceModal = () => {
 const loadApartments = () => {
   invoiceForm.value.apartmentId = ''
   invoiceForm.value.residentId = ''
+  
+  // Проверяем, есть ли квартиры в выбранном доме
+  const apartmentsInBuilding = filteredApartments.value
+  if (apartmentsInBuilding.length === 0) {
+    alert('В выбранном доме нет квартир')
+    invoiceForm.value.buildingId = ''
+  }
 }
 
 const loadResidents = () => {
   invoiceForm.value.residentId = ''
+  
+  // Проверяем, есть ли жильцы в выбранной квартире
+  const residentsInApartment = filteredResidents.value
+  if (residentsInApartment.length === 0) {
+    alert('В выбранной квартире нет зарегистрированных жильцов')
+    invoiceForm.value.apartmentId = ''
+  }
 }
 
 const saveInvoice = async () => {
   try {
     // Проверяем заполнение обязательных полей
-    if (!invoiceForm.value.buildingId || !invoiceForm.value.apartmentId || !invoiceForm.value.residentId) {
-      alert('Пожалуйста, заполните все обязательные поля')
+    if (!invoiceForm.value.buildingId) {
+      alert('Пожалуйста, выберите дом')
+      return
+    }
+    
+    if (!invoiceForm.value.apartmentId) {
+      alert('Пожалуйста, выберите квартиру')
+      return
+    }
+    
+    if (!invoiceForm.value.residentId) {
+      alert('Пожалуйста, выберите жильца')
       return
     }
 
@@ -580,6 +604,7 @@ const saveInvoice = async () => {
       return
     }
 
+    // Создаем объект с данными счета
     const invoiceData = {
       buildingId: invoiceForm.value.buildingId,
       apartmentId: invoiceForm.value.apartmentId,
@@ -594,9 +619,11 @@ const saveInvoice = async () => {
     }
 
     if (editingInvoice.value) {
+      // При редактировании обновляем существующий счет
       await invoicesStore.updateInvoice(editingInvoice.value.id, invoiceData)
       console.log('Invoice updated:', invoiceData)
     } else {
+      // При создании нового счета добавляем его
       await invoicesStore.addInvoice(invoiceData)
       console.log('Invoice added:', invoiceData)
     }
@@ -640,7 +667,7 @@ const calculateBuildingTotal = computed(() => {
   for (const [serviceId, quantity] of Object.entries(invoiceForm.value.services)) {
     const service = utilitiesStore.utilities.find(s => s.id === serviceId)
     if (service && service.buildingId === invoiceForm.value.buildingId) {
-      total += service.rate * (quantity || 0)
+      total += service.rate * (parseFloat(quantity) || 0)
     }
   }
   return total
@@ -653,7 +680,7 @@ const calculateApartmentTotal = computed(() => {
   for (const [serviceId, quantity] of Object.entries(invoiceForm.value.services)) {
     const service = utilitiesStore.utilities.find(s => s.id === serviceId)
     if (service) {
-      total += service.rate * (quantity || 0)
+      total += service.rate * (parseFloat(quantity) || 0)
     }
   }
   return total
@@ -661,7 +688,10 @@ const calculateApartmentTotal = computed(() => {
 
 const calculateTotalDebt = computed(() => {
   if (!invoiceForm.value.apartmentId) return 0
-  return invoicesStore.getTotalDebtByApartment(invoiceForm.value.apartmentId)
+  
+  // При редактировании не учитываем текущий счет в долге
+  const currentInvoiceId = editingInvoice.value?.id
+  return invoicesStore.getTotalDebtByApartment(invoiceForm.value.apartmentId, currentInvoiceId)
 })
 
 const calculateTotal = computed(() => {
@@ -748,6 +778,41 @@ const deleteInvoice = async (invoiceId) => {
 const getApartmentResidents = (apartmentId) => {
   return residentsStore.residents.filter(resident => resident.apartmentId === apartmentId)
 }
+
+// Добавляем watch для синхронизации выбранного дома
+watch(() => invoiceForm.value.buildingId, (newBuildingId) => {
+  selectedBuilding.value = newBuildingId
+})
+
+watch(() => selectedBuilding.value, (newBuildingId) => {
+  if (invoiceForm.value.buildingId !== newBuildingId) {
+    invoiceForm.value.buildingId = newBuildingId
+    loadApartments()
+  }
+})
+
+// Добавляем watch для синхронизации выбранной квартиры
+watch(() => invoiceForm.value.apartmentId, (newApartmentId) => {
+  selectedApartment.value = newApartmentId
+})
+
+watch(() => selectedApartment.value, (newApartmentId) => {
+  if (invoiceForm.value.apartmentId !== newApartmentId) {
+    invoiceForm.value.apartmentId = newApartmentId
+    loadResidents()
+  }
+})
+
+// Добавляем watch для синхронизации выбранного жильца
+watch(() => invoiceForm.value.residentId, (newResidentId) => {
+  selectedResident.value = newResidentId
+})
+
+watch(() => selectedResident.value, (newResidentId) => {
+  if (invoiceForm.value.residentId !== newResidentId) {
+    invoiceForm.value.residentId = newResidentId
+  }
+})
 
 onMounted(async () => {
   try {

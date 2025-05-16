@@ -34,18 +34,55 @@
             </p>
           </div>
           <div class="stat-card">
-            <h3>Средняя сумма платежа</h3>
-            <p class="amount">{{ averagePayment.toLocaleString('ru-RU') }} ₽</p>
+            <h3>Сумма по коммунальным счетам</h3>
+            <p class="amount" :class="{ 'has-debt': totalInvoices > 0 }">
+              {{ totalInvoices.toLocaleString('ru-RU') }} ₽
+            </p>
           </div>
           <div class="stat-card">
-            <h3>Процент оплаты</h3>
-            <p class="amount">{{ paymentPercentage }}%</p>
+            <h3>Общая сумма задолженности</h3>
+            <p class="amount" :class="{ 'has-debt': totalCombined > 0 }">
+              {{ totalCombined.toLocaleString('ru-RU') }} ₽
+            </p>
           </div>
         </div>
 
-        <!-- История платежей -->
-        <div class="payment-history">
-          <h3>История платежей</h3>
+        <!-- История долгов -->
+        <div class="debt-history">
+          <h3>История долгов</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Дом</th>
+                  <th>Квартира</th>
+                  <th>Сумма</th>
+                  <th>Описание</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="debt in filteredDebts" :key="debt.id">
+                  <td>{{ formatDate(debt.date) }}</td>
+                  <td>{{ getBuildingName(debt.buildingId) }}</td>
+                  <td>{{ getApartmentNumber(debt.apartmentId) }}</td>
+                  <td>{{ debt.amount.toLocaleString('ru-RU') }} ₽</td>
+                  <td>{{ debt.description }}</td>
+                  <td>
+                    <span :class="debt.status === 'paid' ? 'status-paid' : 'status-pending'">
+                      {{ debt.status === 'paid' ? 'Оплачено' : 'Ожидает оплаты' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- История коммунальных счетов -->
+        <div class="invoices-history">
+          <h3>История коммунальных счетов</h3>
           <div class="table-container">
             <table>
               <thead>
@@ -58,14 +95,14 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="payment in filteredPayments" :key="payment.id">
-                  <td>{{ formatDate(payment.date) }}</td>
-                  <td>{{ getBuildingName(payment.buildingId) }}</td>
-                  <td>{{ getApartmentNumber(payment.apartmentId) }}</td>
-                  <td>{{ payment.amount.toLocaleString('ru-RU') }} ₽</td>
+                <tr v-for="invoice in filteredInvoices" :key="invoice.id">
+                  <td>{{ formatDate(invoice.period.month) }} {{ invoice.period.year }}</td>
+                  <td>{{ getBuildingName(invoice.buildingId) }}</td>
+                  <td>{{ getApartmentNumber(invoice.apartmentId) }}</td>
+                  <td>{{ invoice.total.toLocaleString('ru-RU') }} ₽</td>
                   <td>
-                    <span :class="payment.status === 'paid' ? 'status-paid' : 'status-pending'">
-                      {{ payment.status === 'paid' ? 'Оплачено' : 'Ожидает оплаты' }}
+                    <span :class="invoice.status === 'paid' ? 'status-paid' : 'status-pending'">
+                      {{ invoice.status === 'paid' ? 'Оплачено' : 'Ожидает оплаты' }}
                     </span>
                   </td>
                 </tr>
@@ -82,6 +119,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useBuildingsStore } from '../stores/buildings'
 import { useApartmentsStore } from '../stores/apartments'
+import { useDebtsStore } from '../stores/debts'
+import { useInvoicesStore } from '../stores/invoices'
 
 const props = defineProps({
   show: Boolean
@@ -91,21 +130,16 @@ const emit = defineEmits(['close'])
 
 const buildingsStore = useBuildingsStore()
 const apartmentsStore = useApartmentsStore()
+const debtsStore = useDebtsStore()
+const invoicesStore = useInvoicesStore()
 
 // Состояния
 const selectedBuilding = ref('')
 const selectedApartment = ref('')
 const buildings = ref([])
 const apartments = ref([])
-const payments = ref([])
-
-// Временные данные для демонстрации
-const mockPayments = [
-  { id: 1, date: '2024-03-01', buildingId: '1', apartmentId: '1', amount: 5000, status: 'paid' },
-  { id: 2, date: '2024-03-15', buildingId: '1', apartmentId: '2', amount: 6000, status: 'pending' },
-  { id: 3, date: '2024-03-20', buildingId: '2', apartmentId: '3', amount: 5500, status: 'paid' },
-  { id: 4, date: '2024-03-25', buildingId: '2', apartmentId: '4', amount: 7000, status: 'pending' }
-]
+const debts = ref([])
+const invoices = ref([])
 
 // Вычисляемые свойства
 const filteredApartments = computed(() => {
@@ -113,33 +147,38 @@ const filteredApartments = computed(() => {
   return apartments.value.filter(apt => apt.buildingId === selectedBuilding.value)
 })
 
-const filteredPayments = computed(() => {
-  let result = payments.value
+const filteredDebts = computed(() => {
+  let result = debts.value
   if (selectedBuilding.value) {
-    result = result.filter(p => p.buildingId === selectedBuilding.value)
+    result = result.filter(d => d.buildingId === selectedBuilding.value)
   }
   if (selectedApartment.value) {
-    result = result.filter(p => p.apartmentId === selectedApartment.value)
+    result = result.filter(d => d.apartmentId === selectedApartment.value)
+  }
+  return result
+})
+
+const filteredInvoices = computed(() => {
+  let result = invoices.value
+  if (selectedBuilding.value) {
+    result = result.filter(i => i.buildingId === selectedBuilding.value)
+  }
+  if (selectedApartment.value) {
+    result = result.filter(i => i.apartmentId === selectedApartment.value)
   }
   return result
 })
 
 const totalDebt = computed(() => {
-  return filteredPayments.value
-    .filter(p => p.status === 'pending')
-    .reduce((sum, p) => sum + p.amount, 0)
+  return filteredDebts.value.reduce((sum, debt) => sum + (debt.amount || 0), 0)
 })
 
-const averagePayment = computed(() => {
-  const paidPayments = filteredPayments.value.filter(p => p.status === 'paid')
-  if (paidPayments.length === 0) return 0
-  return paidPayments.reduce((sum, p) => sum + p.amount, 0) / paidPayments.length
+const totalInvoices = computed(() => {
+  return filteredInvoices.value.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
 })
 
-const paymentPercentage = computed(() => {
-  const total = filteredPayments.value.length
-  const paid = filteredPayments.value.filter(p => p.status === 'paid').length
-  return total > 0 ? Math.round((paid / total) * 100) : 0
+const totalCombined = computed(() => {
+  return totalDebt.value + totalInvoices.value
 })
 
 // Методы
@@ -170,11 +209,15 @@ onMounted(async () => {
   try {
     await buildingsStore.fetchBuildings()
     await apartmentsStore.fetchApartments()
+    await debtsStore.fetchDebts()
+    await invoicesStore.fetchInvoices()
+    
     buildings.value = buildingsStore.buildings
     apartments.value = apartmentsStore.apartments
-    payments.value = mockPayments
+    debts.value = debtsStore.debts
+    invoices.value = invoicesStore.invoices
   } catch (error) {
-    console.error('Error loading data:', error)
+    console.error('Ошибка при загрузке данных:', error)
   }
 })
 </script>
@@ -264,8 +307,22 @@ onMounted(async () => {
   color: #e74c3c;
 }
 
+.debt-history,
+.invoices-history {
+  margin-top: 2rem;
+}
+
+.debt-history h3,
+.invoices-history h3 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
 .table-container {
   overflow-x: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 table {
@@ -274,7 +331,7 @@ table {
 }
 
 th, td {
-  padding: 0.75rem;
+  padding: 1rem;
   text-align: left;
   border-bottom: 1px solid #eee;
 }
@@ -282,6 +339,7 @@ th, td {
 th {
   background-color: #f8f9fa;
   font-weight: 500;
+  color: #2c3e50;
 }
 
 .status-paid {

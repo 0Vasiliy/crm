@@ -27,12 +27,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import DebtDetailsModal from '../components/DebtDetailsModal.vue'
+import { useDebtsStore } from '../stores/debts'
+import { useInvoicesStore } from '../stores/invoices'
 
-// Временное значение для демонстрации
-const totalDebt = ref(15000)
+const debtsStore = useDebtsStore()
+const invoicesStore = useInvoicesStore()
 const showDebtModal = ref(false)
+
+const totalDebt = computed(() => {
+  return debtsStore.getTotalDebt() + invoicesStore.getTotalDebt()
+})
 
 const showDebtDetails = () => {
   showDebtModal.value = true
@@ -42,9 +48,13 @@ const closeDebtModal = () => {
   showDebtModal.value = false
 }
 
-// Здесь будет функция для получения реальных данных о долгах
-onMounted(() => {
-  // TODO: Загрузить данные о долгах из базы данных
+onMounted(async () => {
+  try {
+    await debtsStore.fetchDebts()
+    await invoicesStore.fetchInvoices()
+  } catch (error) {
+    console.error('Ошибка при загрузке данных о долгах:', error)
+  }
 })
 </script>
 
