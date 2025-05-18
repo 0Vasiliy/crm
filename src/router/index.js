@@ -37,6 +37,56 @@ const routes = [
     component: () => import('../views/Tickets.vue')
   },
   {
+    path: '/finance',
+    name: 'Finance',
+    component: () => import('../views/Finance.vue')
+  },
+  {
+    path: '/resources',
+    name: 'Resources',
+    component: () => import('../views/Resources.vue')
+  },
+  {
+    path: '/maintenance',
+    name: 'Maintenance',
+    component: () => import('../views/Maintenance.vue')
+  },
+  {
+    path: '/communications',
+    name: 'Communications',
+    component: () => import('../views/Communications.vue')
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    component: () => import('../views/Analytics.vue')
+  },
+  {
+    path: '/security',
+    name: 'Security',
+    component: () => import('../views/Security.vue')
+  },
+  {
+    path: '/documents',
+    name: 'Documents',
+    component: () => import('../views/Documents.vue')
+  },
+  {
+    path: '/parking',
+    name: 'Parking',
+    component: () => import('../views/Parking.vue')
+  },
+  {
+    path: '/common-areas',
+    name: 'CommonAreas',
+    component: () => import('../views/CommonAreas.vue')
+  },
+  {
+    path: '/ecology',
+    name: 'Ecology',
+    component: () => import('../views/Ecology.vue')
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/'
   }
