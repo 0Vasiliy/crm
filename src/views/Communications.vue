@@ -10,36 +10,45 @@
         indicator-color="primary"
         align="justify"
       >
-        <q-tab name="notifications" label="Уведомления" />
+        <q-tab name="notifications" label="Массовые рассылки" />
         <q-tab name="chatbot" label="Чат-бот" />
         <q-tab name="templates" label="Шаблоны" />
-        <q-tab name="settings" label="Настройки" />
       </q-tabs>
 
       <q-tab-panels v-model="activeTab" animated>
-        <!-- Панель уведомлений -->
+        <!-- Панель массовых рассылок -->
         <q-tab-panel name="notifications">
           <div class="row q-col-gutter-md">
             <div class="col-12">
               <q-card>
                 <q-card-section>
-                  <div class="text-h6">Массовые рассылки</div>
+                  <div class="text-h6">Отправка уведомлений</div>
                   <div class="row q-col-gutter-md">
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-6">
                       <q-select
                         v-model="selectedTemplate"
-                        :options="notificationTemplates"
-                        label="Шаблон уведомления"
+                        :options="templates"
+                        label="Шаблон сообщения"
+                        option-label="name"
                       />
                     </div>
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-6">
                       <q-select
-                        v-model="selectedAudience"
-                        :options="audienceTypes"
-                        label="Целевая аудитория"
+                        v-model="selectedRecipients"
+                        :options="recipientGroups"
+                        label="Группа получателей"
+                        multiple
                       />
                     </div>
-                    <div class="col-12 col-md-4">
+                    <div class="col-12">
+                      <q-input
+                        v-model="notificationMessage"
+                        type="textarea"
+                        label="Текст сообщения"
+                        :disable="!!selectedTemplate"
+                      />
+                    </div>
+                    <div class="col-12">
                       <q-btn color="primary" label="Отправить" @click="sendNotification" />
                     </div>
                   </div>
@@ -63,22 +72,36 @@
                 <q-card-section>
                   <div class="text-h6">Настройка чат-бота</div>
                   <div class="row q-col-gutter-md">
+                    <div class="col-12 col-md-4">
+                      <q-input
+                        v-model="newScenario.question"
+                        label="Вопрос"
+                      />
+                    </div>
+                    <div class="col-12 col-md-8">
+                      <q-input
+                        v-model="newScenario.answer"
+                        type="textarea"
+                        label="Ответ"
+                      />
+                    </div>
                     <div class="col-12">
-                      <q-list>
-                        <q-item v-for="scenario in chatbotScenarios" :key="scenario.id">
-                          <q-item-section>
-                            <q-item-label>{{ scenario.question }}</q-item-label>
-                            <q-item-label caption>{{ scenario.answer }}</q-item-label>
-                          </q-item-section>
-                          <q-item-section side>
-                            <q-btn flat round color="primary" icon="edit" @click="editScenario(scenario)" />
-                            <q-btn flat round color="negative" icon="delete" @click="deleteScenario(scenario)" />
-                          </q-item-section>
-                        </q-item>
-                      </q-list>
-                      <q-btn color="primary" label="Добавить сценарий" @click="addScenario" class="q-mt-md" />
+                      <q-btn color="primary" label="Добавить сценарий" @click="addScenario" />
                     </div>
                   </div>
+                  <q-table
+                    :rows="scenarios"
+                    :columns="scenarioColumns"
+                    row-key="id"
+                    :loading="loading"
+                  >
+                    <template v-slot:body-cell-actions="props">
+                      <q-td :props="props">
+                        <q-btn flat color="primary" icon="edit" @click="editScenario(props.row)" />
+                        <q-btn flat color="negative" icon="delete" @click="deleteScenario(props.row)" />
+                      </q-td>
+                    </template>
+                  </q-table>
                 </q-card-section>
               </q-card>
             </div>
@@ -92,55 +115,37 @@
               <q-card>
                 <q-card-section>
                   <div class="text-h6">Шаблоны сообщений</div>
+                  <div class="row q-col-gutter-md">
+                    <div class="col-12 col-md-6">
+                      <q-input
+                        v-model="newTemplate.name"
+                        label="Название шаблона"
+                      />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <q-select
+                        v-model="newTemplate.type"
+                        :options="templateTypes"
+                        label="Тип шаблона"
+                      />
+                    </div>
+                    <div class="col-12">
+                      <q-input
+                        v-model="newTemplate.content"
+                        type="textarea"
+                        label="Содержание"
+                      />
+                    </div>
+                    <div class="col-12">
+                      <q-btn color="primary" label="Создать шаблон" @click="createTemplate" />
+                    </div>
+                  </div>
                   <q-table
                     :rows="templates"
                     :columns="templateColumns"
                     row-key="id"
                     :loading="loading"
-                  >
-                    <template v-slot:top>
-                      <q-btn color="primary" label="Создать шаблон" @click="createTemplate" />
-                    </template>
-                  </q-table>
-                </q-card-section>
-              </q-card>
-            </div>
-          </div>
-        </q-tab-panel>
-
-        <!-- Панель настроек -->
-        <q-tab-panel name="settings">
-          <div class="row q-col-gutter-md">
-            <div class="col-12">
-              <q-card>
-                <q-card-section>
-                  <div class="text-h6">Настройки коммуникаций</div>
-                  <div class="row q-col-gutter-md">
-                    <div class="col-12 col-md-6">
-                      <q-toggle
-                        v-model="settings.emailEnabled"
-                        label="Включить email-уведомления"
-                      />
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <q-toggle
-                        v-model="settings.smsEnabled"
-                        label="Включить SMS-уведомления"
-                      />
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <q-toggle
-                        v-model="settings.pushEnabled"
-                        label="Включить push-уведомления"
-                      />
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <q-toggle
-                        v-model="settings.chatbotEnabled"
-                        label="Включить чат-бот"
-                      />
-                    </div>
-                  </div>
+                  />
                 </q-card-section>
               </q-card>
             </div>
@@ -148,107 +153,200 @@
         </q-tab-panel>
       </q-tab-panels>
     </div>
+
+    <div v-if="notification.show" class="notification" :class="notification.type">
+      {{ notification.message }}
+    </div>
   </div>
 </template>
 
 <script>
 import { ref, onMounted } from 'vue'
+import { useCommunicationsStore } from '../stores/communications'
 
 export default {
   name: 'CommunicationsModule',
   setup() {
+    const communicationsStore = useCommunicationsStore()
     const activeTab = ref('notifications')
     const loading = ref(false)
-    const selectedTemplate = ref(null)
-    const selectedAudience = ref(null)
+    const notification = ref({ show: false, message: '', type: '' })
 
+    // Данные для уведомлений
+    const selectedTemplate = ref(null)
+    const selectedRecipients = ref([])
+    const notificationMessage = ref('')
+
+    // Данные для чат-бота
+    const newScenario = ref({
+      question: '',
+      answer: ''
+    })
+
+    // Данные для шаблонов
+    const newTemplate = ref({
+      name: '',
+      type: '',
+      content: ''
+    })
+
+    // Колонки для таблиц
     const notificationColumns = [
       { name: 'id', label: 'ID', field: 'id', sortable: true },
-      { name: 'date', label: 'Дата', field: 'date', sortable: true },
       { name: 'template', label: 'Шаблон', field: 'template', sortable: true },
-      { name: 'audience', label: 'Аудитория', field: 'audience', sortable: true },
-      { name: 'status', label: 'Статус', field: 'status', sortable: true }
+      { name: 'recipients', label: 'Получатели', field: 'recipients', sortable: true },
+      { name: 'status', label: 'Статус', field: 'status', sortable: true },
+      { name: 'createdAt', label: 'Дата отправки', field: 'createdAt', sortable: true }
+    ]
+
+    const scenarioColumns = [
+      { name: 'question', label: 'Вопрос', field: 'question', sortable: true },
+      { name: 'answer', label: 'Ответ', field: 'answer', sortable: true },
+      { name: 'actions', label: 'Действия', field: 'actions', align: 'center' }
     ]
 
     const templateColumns = [
-      { name: 'id', label: 'ID', field: 'id', sortable: true },
       { name: 'name', label: 'Название', field: 'name', sortable: true },
       { name: 'type', label: 'Тип', field: 'type', sortable: true },
-      { name: 'lastUsed', label: 'Последнее использование', field: 'lastUsed', sortable: true }
+      { name: 'content', label: 'Содержание', field: 'content', sortable: true }
     ]
 
-    const notificationTemplates = [
-      { label: 'Оплата коммунальных услуг', value: 'payment' },
-      { label: 'Плановые работы', value: 'maintenance' },
-      { label: 'Экстренное уведомление', value: 'emergency' }
-    ]
-
-    const audienceTypes = [
+    // Опции для селектов
+    const recipientGroups = [
       { label: 'Все жильцы', value: 'all' },
-      { label: 'По зданиям', value: 'buildings' },
-      { label: 'По квартирам', value: 'apartments' },
-      { label: 'По задолженностям', value: 'debts' }
+      { label: 'Должники', value: 'debtors' },
+      { label: 'Новые жильцы', value: 'new' }
     ]
 
-    const notifications = ref([])
-    const templates = ref([])
-    const chatbotScenarios = ref([
-      {
-        id: 1,
-        question: 'Как оплатить коммунальные услуги?',
-        answer: 'Вы можете оплатить коммунальные услуги через личный кабинет, в офисе ЖКХ или через банк.'
-      },
-      {
-        id: 2,
-        question: 'Как подать заявку на ремонт?',
-        answer: 'Для подачи заявки на ремонт воспользуйтесь формой в личном кабинете или позвоните в диспетчерскую.'
+    const templateTypes = [
+      { label: 'Уведомление', value: 'notification' },
+      { label: 'Напоминание', value: 'reminder' },
+      { label: 'Информационное', value: 'info' }
+    ]
+
+    // Функция показа уведомлений
+    const showNotification = (message, type = 'success') => {
+      notification.value = { show: true, message, type }
+      setTimeout(() => {
+        notification.value.show = false
+      }, 3000)
+    }
+
+    // Отправка уведомления
+    const sendNotification = async () => {
+      if (!selectedTemplate.value && !notificationMessage.value) {
+        showNotification('Пожалуйста, выберите шаблон или введите текст сообщения', 'error')
+        return
       }
-    ])
 
-    const settings = ref({
-      emailEnabled: true,
-      smsEnabled: true,
-      pushEnabled: true,
-      chatbotEnabled: true
-    })
+      if (!selectedRecipients.value.length) {
+        showNotification('Пожалуйста, выберите получателей', 'error')
+        return
+      }
 
-    const sendNotification = () => {
-      // Логика отправки уведомления
+      try {
+        const notificationData = {
+          template: selectedTemplate.value?.name || 'Пользовательский шаблон',
+          message: selectedTemplate.value?.content || notificationMessage.value,
+          recipients: selectedRecipients.value,
+          status: 'pending'
+        }
+        await communicationsStore.sendNotification(notificationData)
+        showNotification('Уведомление успешно отправлено')
+        selectedTemplate.value = null
+        selectedRecipients.value = []
+        notificationMessage.value = ''
+      } catch (error) {
+        showNotification('Ошибка при отправке уведомления', 'error')
+      }
     }
 
-    const createTemplate = () => {
-      // Логика создания шаблона
+    // Создание шаблона
+    const createTemplate = async () => {
+      if (!newTemplate.value.name || !newTemplate.value.type || !newTemplate.value.content) {
+        showNotification('Пожалуйста, заполните все поля шаблона', 'error')
+        return
+      }
+
+      try {
+        await communicationsStore.createTemplate(newTemplate.value)
+        showNotification('Шаблон успешно создан')
+        newTemplate.value = {
+          name: '',
+          type: '',
+          content: ''
+        }
+      } catch (error) {
+        showNotification('Ошибка при создании шаблона', 'error')
+      }
     }
 
-    const addScenario = () => {
-      // Логика добавления сценария
+    // Добавление сценария чат-бота
+    const addScenario = async () => {
+      if (!newScenario.value.question || !newScenario.value.answer) {
+        showNotification('Пожалуйста, заполните вопрос и ответ', 'error')
+        return
+      }
+
+      try {
+        await communicationsStore.addScenario(newScenario.value)
+        showNotification('Сценарий успешно добавлен')
+        newScenario.value = {
+          question: '',
+          answer: ''
+        }
+      } catch (error) {
+        showNotification('Ошибка при добавлении сценария', 'error')
+      }
     }
 
+    // Редактирование сценария
     const editScenario = (scenario) => {
-      // Логика редактирования сценария
+      newScenario.value = { ...scenario }
     }
 
-    const deleteScenario = (scenario) => {
-      // Логика удаления сценария
+    // Удаление сценария
+    const deleteScenario = async (scenario) => {
+      try {
+        await communicationsStore.deleteScenario(scenario.id)
+        showNotification('Сценарий успешно удален')
+      } catch (error) {
+        showNotification('Ошибка при удалении сценария', 'error')
+      }
     }
 
-    onMounted(() => {
-      // Загрузка начальных данных
+    onMounted(async () => {
+      loading.value = true
+      try {
+        await Promise.all([
+          communicationsStore.fetchNotifications(),
+          communicationsStore.fetchTemplates(),
+          communicationsStore.fetchScenarios()
+        ])
+      } catch (error) {
+        showNotification('Ошибка при загрузке данных', 'error')
+      } finally {
+        loading.value = false
+      }
     })
 
     return {
       activeTab,
       loading,
+      notification,
       selectedTemplate,
-      selectedAudience,
+      selectedRecipients,
+      notificationMessage,
+      newScenario,
+      newTemplate,
+      notifications: communicationsStore.notifications,
+      templates: communicationsStore.templates,
+      scenarios: communicationsStore.scenarios,
       notificationColumns,
+      scenarioColumns,
       templateColumns,
-      notificationTemplates,
-      audienceTypes,
-      notifications,
-      templates,
-      chatbotScenarios,
-      settings,
+      recipientGroups,
+      templateTypes,
       sendNotification,
       createTemplate,
       addScenario,
@@ -266,5 +364,24 @@ export default {
 
 .communications-tabs {
   margin-top: 20px;
+}
+
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 15px 25px;
+  border-radius: 4px;
+  color: white;
+  z-index: 1000;
+  transition: opacity 0.3s ease;
+}
+
+.notification.success {
+  background-color: #4caf50;
+}
+
+.notification.error {
+  background-color: #f44336;
 }
 </style> 

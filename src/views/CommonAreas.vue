@@ -131,15 +131,21 @@
         </q-tab-panel>
       </q-tab-panels>
     </div>
+
+    <div v-if="notification.show" class="notification" :class="notification.type">
+      {{ notification.message }}
+    </div>
   </div>
 </template>
 
 <script>
 import { ref, onMounted } from 'vue'
+import { useCommonAreasStore } from '../stores/commonAreas'
 
 export default {
   name: 'CommonAreasModule',
   setup() {
+    const commonAreasStore = useCommonAreasStore()
     const activeTab = ref('areas')
     const loading = ref(false)
     const selectedType = ref(null)
@@ -148,6 +154,14 @@ export default {
     const bookingDate = ref(null)
     const selectedMaintenanceType = ref(null)
     const maintenanceDate = ref(null)
+    const notification = ref({ show: false, message: '', type: '' })
+
+    const showNotification = (message, type = 'success') => {
+      notification.value = { show: true, message, type }
+      setTimeout(() => {
+        notification.value.show = false
+      }, 3000)
+    }
 
     const areaColumns = [
       { name: 'id', label: 'ID', field: 'id', sortable: true },
@@ -195,24 +209,90 @@ export default {
       { label: 'Проверка', value: 'inspection' }
     ]
 
-    const commonAreas = ref([])
-    const bookings = ref([])
-    const maintenanceSchedule = ref([])
+    const addArea = async () => {
+      if (!selectedType.value || !selectedStatus.value) {
+        showNotification('Пожалуйста, заполните все обязательные поля', 'error')
+        return
+      }
 
-    const addArea = () => {
-      // Логика добавления помещения
+      try {
+        const newArea = {
+          type: selectedType.value,
+          status: selectedStatus.value,
+          name: `Помещение ${commonAreas.value.length + 1}`,
+          capacity: 0,
+          location: 'Не указано'
+        }
+        await commonAreasStore.addCommonArea(newArea)
+        showNotification('Помещение успешно добавлено')
+        selectedType.value = null
+        selectedStatus.value = null
+      } catch (error) {
+        showNotification('Ошибка при добавлении помещения', 'error')
+      }
     }
 
-    const bookArea = () => {
-      // Логика бронирования помещения
+    const bookArea = async () => {
+      if (!selectedArea.value || !bookingDate.value) {
+        showNotification('Пожалуйста, выберите помещение и дату', 'error')
+        return
+      }
+
+      try {
+        const newBooking = {
+          areaId: selectedArea.value.id,
+          areaName: selectedArea.value.name,
+          date: bookingDate.value,
+          status: 'pending',
+          residentId: 'current-user-id',
+          residentName: 'Текущий пользователь'
+        }
+        await commonAreasStore.addBooking(newBooking)
+        showNotification('Помещение успешно забронировано')
+        selectedArea.value = null
+        bookingDate.value = null
+      } catch (error) {
+        showNotification('Ошибка при бронировании помещения', 'error')
+      }
     }
 
-    const scheduleMaintenance = () => {
-      // Логика планирования обслуживания
+    const scheduleMaintenance = async () => {
+      if (!selectedMaintenanceType.value || !maintenanceDate.value) {
+        showNotification('Пожалуйста, выберите тип обслуживания и дату', 'error')
+        return
+      }
+
+      try {
+        const newMaintenance = {
+          type: selectedMaintenanceType.value,
+          date: maintenanceDate.value,
+          status: 'scheduled',
+          contractor: 'Не назначен',
+          areaId: selectedArea.value?.id,
+          areaName: selectedArea.value?.name
+        }
+        await commonAreasStore.addMaintenanceRecord(newMaintenance)
+        showNotification('Обслуживание успешно запланировано')
+        selectedMaintenanceType.value = null
+        maintenanceDate.value = null
+      } catch (error) {
+        showNotification('Ошибка при планировании обслуживания', 'error')
+      }
     }
 
-    onMounted(() => {
-      // Загрузка начальных данных
+    onMounted(async () => {
+      loading.value = true
+      try {
+        await Promise.all([
+          commonAreasStore.fetchCommonAreas(),
+          commonAreasStore.fetchBookings(),
+          commonAreasStore.fetchMaintenanceSchedule()
+        ])
+      } catch (error) {
+        showNotification('Ошибка при загрузке данных', 'error')
+      } finally {
+        loading.value = false
+      }
     })
 
     return {
@@ -230,9 +310,10 @@ export default {
       areaTypes,
       areaStatuses,
       maintenanceTypes,
-      commonAreas,
-      bookings,
-      maintenanceSchedule,
+      commonAreas: commonAreasStore.commonAreas,
+      bookings: commonAreasStore.bookings,
+      maintenanceSchedule: commonAreasStore.maintenanceSchedule,
+      notification,
       addArea,
       bookArea,
       scheduleMaintenance
@@ -248,5 +329,24 @@ export default {
 
 .common-areas-tabs {
   margin-top: 20px;
+}
+
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 15px 25px;
+  border-radius: 4px;
+  color: white;
+  z-index: 1000;
+  transition: opacity 0.3s ease;
+}
+
+.notification.success {
+  background-color: #4caf50;
+}
+
+.notification.error {
+  background-color: #f44336;
 }
 </style> 

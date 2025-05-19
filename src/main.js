@@ -4,6 +4,11 @@ import App from './App.vue'
 import router from './router'
 import { createHead } from '@vueuse/head'
 
+// Quasar
+import { Quasar } from 'quasar'
+import '@quasar/extras/material-icons/material-icons.css'
+import 'quasar/dist/quasar.css'
+
 const app = createApp(App)
 const head = createHead()
 
@@ -15,5 +20,20 @@ router.onError((error) => {
 app.use(createPinia())
 app.use(router)
 app.use(head)
+app.use(Quasar, {
+  plugins: {}, // import Quasar plugins and add here
+  config: {
+    brand: {
+      primary: '#1976D2',
+      secondary: '#26A69A',
+      accent: '#9C27B0',
+      dark: '#1d1d1d',
+      positive: '#21BA45',
+      negative: '#C10015',
+      info: '#31CCEC',
+      warning: '#F2C037'
+    }
+  }
+})
 
 app.mount('#app') 
