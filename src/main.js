@@ -5,7 +5,7 @@ import router from './router'
 import { createHead } from '@vueuse/head'
 
 // Quasar
-import { Quasar } from 'quasar'
+import { Quasar, Notify, Dialog } from 'quasar'
 import '@quasar/extras/material-icons/material-icons.css'
 import 'quasar/dist/quasar.css'
 
@@ -21,7 +21,10 @@ app.use(createPinia())
 app.use(router)
 app.use(head)
 app.use(Quasar, {
-  plugins: {}, // import Quasar plugins and add here
+  plugins: {
+    Notify,
+    Dialog
+  },
   config: {
     brand: {
       primary: '#1976D2',

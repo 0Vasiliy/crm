@@ -1,157 +1,150 @@
 import { defineStore } from 'pinia'
-import { collection, addDoc, getDocs, query, where, updateDoc, doc, deleteDoc } from 'firebase/firestore'
+import { ref, computed } from 'vue'
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 
-export const useInvoicesStore = defineStore('invoices', {
-  state: () => ({
-    invoices: [],
-    loading: false,
-    error: null
-  }),
+export const useInvoicesStore = defineStore('invoices', () => {
+  const invoices = ref([])
+  const loading = ref(false)
+  const error = ref(null)
 
-  actions: {
-    async fetchInvoices() {
-      this.loading = true
-      try {
-        console.log('Fetching invoices...')
-        const querySnapshot = await getDocs(collection(db, 'invoices'))
-        this.invoices = querySnapshot.docs.map(doc => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            buildingId: data.buildingId || '',
-            apartmentId: data.apartmentId || '',
-            residentId: data.residentId || '',
-            period: data.period || { month: 1, year: new Date().getFullYear() },
-            services: data.services || {},
-            buildingTotal: data.buildingTotal || 0,
-            apartmentTotal: data.apartmentTotal || 0,
-            totalDebt: data.totalDebt || 0,
-            total: data.total || 0,
-            status: data.status || 'pending',
-            createdAt: data.createdAt || new Date().toISOString()
-          }
-        })
-        console.log('Invoices fetched:', this.invoices)
-      } catch (error) {
-        console.error('Error fetching invoices:', error)
-        this.error = error.message
-      } finally {
-        this.loading = false
+  // Вычисляемые свойства для получения счетов
+  const getInvoicesByBuilding = computed(() => (buildingId) => {
+    return invoices.value.filter(invoice => invoice.buildingId === buildingId)
+  })
+
+  const getInvoicesByApartment = computed(() => (apartmentId) => {
+    return invoices.value.filter(invoice => invoice.apartmentId === apartmentId)
+  })
+
+  const getInvoicesByResident = computed(() => (residentId) => {
+    return invoices.value.filter(invoice => invoice.residentId === residentId)
+  })
+
+  // Вычисляемые свойства для расчета общей суммы счетов
+  const getTotalInvoicesByBuilding = computed(() => (buildingId) => {
+    const buildingInvoices = getInvoicesByBuilding.value(buildingId)
+    return buildingInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
+  })
+
+  const getTotalInvoicesByApartment = computed(() => (apartmentId) => {
+    const apartmentInvoices = getInvoicesByApartment.value(apartmentId)
+    return apartmentInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
+  })
+
+  const getTotalInvoicesByResident = computed(() => (residentId) => {
+    const residentInvoices = getInvoicesByResident.value(residentId)
+    return residentInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
+  })
+
+  const getTotalDebt = computed(() => {
+    return invoices.value
+      .filter(invoice => invoice.status === 'pending' || invoice.status === 'overdue')
+      .reduce((sum, invoice) => sum + (invoice.total || 0), 0)
+  })
+
+  const fetchInvoices = async (filters = {}) => {
+    loading.value = true
+    error.value = null
+    try {
+      console.log('Загрузка счетов с фильтрами:', filters)
+      const invoicesRef = collection(db, 'invoices')
+      let q = query(invoicesRef)
+
+      // Применяем фильтры последовательно
+      if (filters.buildingId) {
+        q = query(q, where('buildingId', '==', filters.buildingId))
       }
-    },
+      
+      if (filters.apartmentId) {
+        q = query(q, where('apartmentId', '==', filters.apartmentId))
+      }
+      
+      if (filters.residentId) {
+        q = query(q, where('residentId', '==', filters.residentId))
+      }
 
-    async addInvoice(invoiceData) {
-      try {
-        console.log('Adding invoice:', invoiceData)
-        const docRef = await addDoc(collection(db, 'invoices'), {
-          buildingId: invoiceData.buildingId,
-          apartmentId: invoiceData.apartmentId,
-          residentId: invoiceData.residentId,
-          period: invoiceData.period,
-          services: invoiceData.services,
-          buildingTotal: invoiceData.buildingTotal,
-          apartmentTotal: invoiceData.apartmentTotal,
-          totalDebt: invoiceData.totalDebt,
-          total: invoiceData.total,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        })
-        
-        const newInvoice = {
-          id: docRef.id,
-          ...invoiceData
-        }
-        
-        // Добавляем новый счет в локальное состояние
-        this.invoices = [...this.invoices, newInvoice]
-        console.log('Invoice added:', newInvoice)
-        
+      // Добавляем сортировку по дате
+      q = query(q, orderBy('date', 'desc'))
+
+      const querySnapshot = await getDocs(q)
+      const invoices = []
+      
+      querySnapshot.forEach((doc) => {
+        const invoice = { id: doc.id, ...doc.data() }
+        invoices.push(invoice)
+      })
+
+      console.log('Загружено счетов:', invoices.length)
+      invoices.value = invoices
+      return invoices
+    } catch (error) {
+      console.error('Ошибка при загрузке счетов:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const addInvoice = async (invoiceData) => {
+    try {
+      const invoicesRef = collection(db, 'invoices')
+      const docRef = await addDoc(invoicesRef, {
+        ...invoiceData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      const newInvoice = { id: docRef.id, ...invoiceData }
+      invoices.value.unshift(newInvoice)
         return docRef.id
       } catch (error) {
-        console.error('Error adding invoice:', error)
+      console.error('Ошибка при добавлении счета:', error)
         throw error
       }
-    },
+  }
 
-    async updateInvoice(id, data) {
-      try {
-        console.log('Updating invoice:', id, data)
-        await updateDoc(doc(db, 'invoices', id), data)
-        
-        // Обновляем счет в локальном состоянии
-        const index = this.invoices.findIndex(invoice => invoice.id === id)
+  const updateInvoice = async (id, invoiceData) => {
+    try {
+      const invoiceRef = doc(db, 'invoices', id)
+      await updateDoc(invoiceRef, {
+        ...invoiceData,
+        updatedAt: new Date().toISOString()
+      })
+      const index = invoices.value.findIndex(i => i.id === id)
         if (index !== -1) {
-          this.invoices[index] = {
-            ...this.invoices[index],
-            ...data
-          }
+        invoices.value[index] = { ...invoices.value[index], ...invoiceData }
         }
       } catch (error) {
-        console.error('Error updating invoice:', error)
+      console.error('Ошибка при обновлении счета:', error)
         throw error
       }
-    },
+  }
 
-    async deleteInvoice(id) {
-      try {
-        console.log('Deleting invoice:', id)
-        await deleteDoc(doc(db, 'invoices', id))
-        
-        // Удаляем счет из локального состояния
-        this.invoices = this.invoices.filter(invoice => invoice.id !== id)
+  const deleteInvoice = async (id) => {
+    try {
+      const invoiceRef = doc(db, 'invoices', id)
+      await deleteDoc(invoiceRef)
+      invoices.value = invoices.value.filter(i => i.id !== id)
       } catch (error) {
-        console.error('Error deleting invoice:', error)
+      console.error('Ошибка при удалении счета:', error)
         throw error
-      }
-    },
-
-    getInvoicesByBuilding(buildingId) {
-      if (!buildingId) return []
-      const invoices = this.invoices.filter(invoice => invoice.buildingId === buildingId)
-      console.log('Invoices for building', buildingId, ':', invoices)
-      return invoices
-    },
-
-    getInvoicesByApartment(apartmentId) {
-      if (!apartmentId) return []
-      const invoices = this.invoices.filter(invoice => invoice.apartmentId === apartmentId)
-      console.log('Invoices for apartment', apartmentId, ':', invoices)
-      return invoices
-    },
-
-    getInvoicesByResident(residentId) {
-      if (!residentId) return []
-      const invoices = this.invoices.filter(invoice => invoice.residentId === residentId)
-      console.log('Invoices for resident', residentId, ':', invoices)
-      return invoices
-    },
-
-    getTotalDebtByBuilding(buildingId) {
-      const buildingInvoices = this.getInvoicesByBuilding(buildingId)
-      const total = buildingInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
-      console.log('Total debt for building', buildingId, ':', total)
-      return total
-    },
-
-    getTotalDebtByApartment(apartmentId) {
-      const apartmentInvoices = this.getInvoicesByApartment(apartmentId)
-      const total = apartmentInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
-      console.log('Total debt for apartment', apartmentId, ':', total)
-      return total
-    },
-
-    getTotalDebtByResident(residentId) {
-      const residentInvoices = this.getInvoicesByResident(residentId)
-      const total = residentInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
-      console.log('Total debt for resident', residentId, ':', total)
-      return total
-    },
-
-    getTotalDebt() {
-      const total = this.invoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
-      console.log('Total debt:', total)
-      return total
     }
+  }
+
+  return {
+    invoices,
+    loading,
+    error,
+    fetchInvoices,
+    addInvoice,
+    updateInvoice,
+    deleteInvoice,
+    getInvoicesByBuilding,
+    getInvoicesByApartment,
+    getInvoicesByResident,
+    getTotalInvoicesByBuilding,
+    getTotalInvoicesByApartment,
+    getTotalInvoicesByResident,
+    getTotalDebt
   }
 }) 

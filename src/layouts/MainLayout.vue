@@ -47,7 +47,11 @@ const invoicesStore = useInvoicesStore()
 const showDebtModal = ref(false)
 
 const totalDebt = computed(() => {
-  return debtsStore.getTotalDebt() + invoicesStore.getTotalDebt()
+  const debtsTotal = debtsStore.debts.reduce((sum, debt) => sum + (Number(debt.amount) || 0), 0)
+  const invoicesTotal = invoicesStore.invoices
+    .filter(invoice => invoice.status === 'pending' || invoice.status === 'overdue')
+    .reduce((sum, invoice) => sum + (Number(invoice.total) || 0), 0)
+  return debtsTotal + invoicesTotal
 })
 
 const showDebtDetails = () => {
