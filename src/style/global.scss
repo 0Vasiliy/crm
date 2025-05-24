@@ -1,0 +1,67 @@
+// Глобальные стили для заголовков
+h1 {
+  font-size: 1.5rem !important; // Уменьшаем с 3rem до 1.5rem
+}
+
+h2 {
+  font-size: 1.25rem !important; // Уменьшаем с 2.5rem до 1.25rem
+}
+
+h3 {
+  font-size: 1rem !important; // Уменьшаем с 2rem до 1rem
+}
+
+// Стили для Quasar заголовков
+.text-h1 {
+  font-size: 1.5rem !important;
+}
+
+.text-h2 {
+  font-size: 1.25rem !important;
+}
+
+.text-h3 {
+  font-size: 1rem !important;
+}
+
+.text-h4 {
+  font-size: 0.875rem !important;
+}
+
+.text-h5 {
+  font-size: 0.75rem !important;
+}
+
+.text-h6 {
+  font-size: 0.625rem !important;
+}
+
+// Стили для заголовков в карточках
+.q-card .text-h6 {
+  font-size: 1rem !important;
+}
+
+// Стили для заголовков в модальных окнах
+.modal-content h2 {
+  font-size: 1.25rem !important;
+}
+
+// Стили для заголовков в секциях
+.info-section h2 {
+  font-size: 1.25rem !important;
+}
+
+// Стили для заголовков в статистике
+.stat-info h3 {
+  font-size: 1rem !important;
+}
+
+// Стили для заголовков в таблицах
+.table-header h3 {
+  font-size: 1rem !important;
+}
+
+// Стили для заголовков в навигации
+.nav-header h3 {
+  font-size: 1rem !important;
+} 

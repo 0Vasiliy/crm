@@ -10,6 +10,7 @@ import MainLayout from './layouts/MainLayout.vue'
 
 <style>
 @import '../node_modules/@fortawesome/fontawesome-free/css/all.css';
+@import './style/global.scss';
 
 :root {
   --primary-color: #3498db;
