@@ -9,7 +9,8 @@ import {
   deleteDoc, 
   doc,
   query,
-  orderBy
+  orderBy,
+  where
 } from 'firebase/firestore'
 
 export const usePaymentsStore = defineStore('payments', () => {
@@ -23,26 +24,26 @@ export const usePaymentsStore = defineStore('payments', () => {
     try {
       console.log('Загрузка платежей с фильтрами:', filters)
       const paymentsRef = collection(db, 'payments')
-      const q = query(paymentsRef, orderBy('date', 'desc'))
+      let q = query(paymentsRef, orderBy('date', 'desc'))
+
+      // Применяем все фильтры на уровне Firestore
+      if (filters.buildingId) {
+        q = query(q, where('buildingId', '==', filters.buildingId))
+      }
+      if (filters.apartmentId) {
+        q = query(q, where('apartmentId', '==', filters.apartmentId))
+      }
+      if (filters.residentId) {
+        q = query(q, where('residentId', '==', filters.residentId))
+      }
 
       const querySnapshot = await getDocs(q)
-      let paymentsList = []
+      const paymentsList = []
       
       querySnapshot.forEach((doc) => {
         const payment = { id: doc.id, ...doc.data() }
         paymentsList.push(payment)
       })
-
-      // Фильтруем на клиенте
-      if (filters.buildingId) {
-        paymentsList = paymentsList.filter(p => p.buildingId === filters.buildingId)
-      }
-      if (filters.apartmentId) {
-        paymentsList = paymentsList.filter(p => p.apartmentId === filters.apartmentId)
-      }
-      if (filters.residentId) {
-        paymentsList = paymentsList.filter(p => p.residentId === filters.residentId)
-      }
 
       console.log('Загружено платежей:', paymentsList.length)
       payments.value = paymentsList

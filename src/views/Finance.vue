@@ -33,30 +33,36 @@
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedBuilding"
-                        :options="buildings"
+                        :options="buildingOptions"
                         label="Выберите дом"
                         @update:model-value="updateSelectedBuilding"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedApartment"
-                        :options="filteredApartments"
+                        :options="apartmentOptions"
                         label="Выберите квартиру"
                         @update:model-value="updateSelectedApartment"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedResident"
-                        :options="filteredResidents"
+                        :options="residentOptions"
                         label="Выберите жильца"
                         @update:model-value="updateSelectedResident"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-btn color="primary" label="Выставить счёт" @click="addInvoice" />
-                  </div>
+                    </div>
                   </div>
                   
                   <!-- Список счетов -->
@@ -485,12 +491,12 @@ const reportTypes = [
 
 // Колонки таблиц
 const invoiceColumns = [
-  { name: 'date', label: 'Дата', field: 'date', format: val => formatDate(val) },
-  { name: 'building', label: 'Здание', field: 'buildingId', format: val => getBuildingName(val) },
-  { name: 'apartment', label: 'Квартира', field: 'apartmentId', format: val => getApartmentNumber(val) },
-  { name: 'resident', label: 'Жилец', field: 'residentId', format: val => getResidentName(val) },
-  { name: 'total', label: 'Сумма', field: 'total', format: val => formatPrice(val) },
-  { name: 'status', label: 'Статус', field: 'status' },
+  { name: 'date', label: 'Дата', field: 'date', align: 'left' },
+  { name: 'buildingName', label: 'Здание', field: 'buildingName', align: 'left' },
+  { name: 'apartmentNumber', label: 'Квартира', field: 'apartmentNumber', align: 'left' },
+  { name: 'residentName', label: 'Жилец', field: 'residentName', align: 'left' },
+  { name: 'total', label: 'Сумма', field: 'total', align: 'right' },
+  { name: 'status', label: 'Статус', field: 'status', align: 'center' },
   { name: 'actions', label: 'Действия', field: 'actions', align: 'center' }
 ]
 
@@ -551,98 +557,88 @@ const filteredResidents = computed(() => {
 })
 
 const filteredInvoices = computed(() => {
-  let result = invoicesStore.invoices
-
-  if (selectedBuilding.value) {
-    result = result.filter(invoice => invoice.buildingId === selectedBuilding.value)
-  }
-  if (selectedApartment.value) {
-    result = result.filter(invoice => invoice.apartmentId === selectedApartment.value)
-  }
-  if (selectedResident.value) {
-    result = result.filter(invoice => invoice.residentId === selectedResident.value)
-  }
-
-  return result.map(invoice => ({
+  return invoicesStore.invoices.map(invoice => ({
     ...invoice,
-    buildingName: buildingsStore.buildings.find(b => b.id === invoice.buildingId)?.name || 'Неизвестно',
-    apartmentNumber: apartmentsStore.apartments.find(a => a.id === invoice.apartmentId)?.number || 'Неизвестно',
-    residentName: residentsStore.residents.find(r => r.id === invoice.residentId)
-      ? `${residentsStore.residents.find(r => r.id === invoice.residentId).lastName} ${residentsStore.residents.find(r => r.id === invoice.residentId).firstName}`
-      : 'Неизвестно'
+    date: formatDate(invoice.date),
+    buildingName: getBuildingName(invoice.buildingId),
+    apartmentNumber: getApartmentNumber(invoice.apartmentId),
+    residentName: getResidentName(invoice.residentId),
+    total: formatPrice(invoice.total),
+    status: getStatusLabel(invoice.status)
   }))
 })
 
 const filteredPayments = computed(() => {
-  let result = paymentsStore.payments
-
-  if (selectedBuilding.value) {
-    result = result.filter(payment => payment.buildingId === selectedBuilding.value)
-  }
-  if (selectedApartment.value) {
-    result = result.filter(payment => payment.apartmentId === selectedApartment.value)
-  }
-  if (selectedResident.value) {
-    result = result.filter(payment => payment.residentId === selectedResident.value)
-  }
-
-  return result.map(payment => ({
+  return paymentsStore.payments.map(payment => ({
     ...payment,
-    buildingName: buildingsStore.buildings.find(b => b.id === payment.buildingId)?.name || 'Неизвестно',
-    apartmentNumber: apartmentsStore.apartments.find(a => a.id === payment.apartmentId)?.number || 'Неизвестно',
-    residentName: residentsStore.residents.find(r => r.id === payment.residentId) 
-      ? `${residentsStore.residents.find(r => r.id === payment.residentId).lastName} ${residentsStore.residents.find(r => r.id === payment.residentId).firstName}`
-      : 'Неизвестно'
+    date: formatDate(payment.date),
+    buildingName: getBuildingName(payment.buildingId),
+    apartmentNumber: getApartmentNumber(payment.apartmentId),
+    residentName: getResidentName(payment.residentId),
+    amount: formatPrice(payment.amount),
+    type: getPaymentTypeLabel(payment.type),
+    status: getStatusLabel(payment.status)
   }))
 })
 
 const filteredReceipts = computed(() => {
-  let receipts = receiptsStore.receipts
-  if (selectedBuilding.value) {
-    receipts = receipts.filter(r => r.buildingId === selectedBuilding.value)
-  }
-  if (selectedApartment.value) {
-    receipts = receipts.filter(r => r.apartmentId === selectedApartment.value)
-  }
-  if (selectedResident.value) {
-    receipts = receipts.filter(r => r.residentId === selectedResident.value)
-  }
-  if (dateRange.value.from && dateRange.value.to) {
-    receipts = receipts.filter(r => {
-      const receiptDate = new Date(r.date)
-      return receiptDate >= new Date(dateRange.value.from) && 
-             receiptDate <= new Date(dateRange.value.to)
-    })
-  }
-  return receipts
+  return receiptsStore.receipts.map(receipt => ({
+    ...receipt,
+    date: formatDate(receipt.date),
+    buildingName: getBuildingName(receipt.buildingId),
+    apartmentNumber: getApartmentNumber(receipt.apartmentId),
+    residentName: getResidentName(receipt.residentId),
+    amount: formatPrice(receipt.amount)
+  }))
 })
 
 const filteredDebts = computed(() => {
-  let result = debtsStore.debts
-
-  if (selectedBuilding.value) {
-    result = result.filter(debt => debt.buildingId === selectedBuilding.value)
-  }
-  if (selectedApartment.value) {
-    result = result.filter(debt => debt.apartmentId === selectedApartment.value)
-  }
-  if (selectedResident.value) {
-    result = result.filter(debt => debt.residentId === selectedResident.value)
-  }
-
-  return result.map(debt => ({
+  return debtsStore.debts.map(debt => ({
     ...debt,
-    buildingName: buildingsStore.buildings.find(b => b.id === debt.buildingId)?.name || 'Неизвестно',
-    apartmentNumber: apartmentsStore.apartments.find(a => a.id === debt.apartmentId)?.number || 'Неизвестно',
-    residentName: residentsStore.residents.find(r => r.id === debt.residentId)
-      ? `${residentsStore.residents.find(r => r.id === debt.residentId).lastName} ${residentsStore.residents.find(r => r.id === debt.residentId).firstName}`
-      : 'Неизвестно'
+    date: formatDate(debt.date),
+    dueDate: formatDate(debt.dueDate),
+    buildingName: getBuildingName(debt.buildingId),
+    apartmentNumber: getApartmentNumber(debt.apartmentId),
+    residentName: getResidentName(debt.residentId),
+    amount: formatPrice(debt.amount),
+    status: getStatusLabel(debt.status)
   }))
+})
+
+// Вычисляемые свойства для опций селектов
+const buildingOptions = computed(() => {
+  return buildingsStore.buildings.map(building => ({
+    label: building.name,
+    value: building.id
+  }))
+})
+
+const apartmentOptions = computed(() => {
+  if (!selectedBuilding.value) return []
+  return apartmentsStore.apartments
+    .filter(apartment => apartment.buildingId === selectedBuilding.value)
+    .map(apartment => ({
+      label: `Квартира ${apartment.number}`,
+      value: apartment.id
+    }))
+})
+
+const residentOptions = computed(() => {
+  if (!selectedApartment.value) return []
+  return residentsStore.residents
+    .filter(resident => resident.apartmentId === selectedApartment.value)
+    .map(resident => ({
+      label: `${resident.lastName} ${resident.firstName}`,
+      value: resident.id
+    }))
 })
 
 // Методы
 const formatPrice = (price) => {
-  return new Intl.NumberFormat('ru-RU').format(price)
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB'
+  }).format(price)
 }
 
 const formatDate = (dateString) => {
@@ -651,17 +647,44 @@ const formatDate = (dateString) => {
 
 const getBuildingName = (buildingId) => {
   const building = buildingsStore.buildings.find(b => b.id === buildingId)
-  return building ? building.name : 'Неизвестное здание'
+  return building ? building.name : 'Неизвестно'
 }
 
 const getApartmentNumber = (apartmentId) => {
   const apartment = apartmentsStore.apartments.find(a => a.id === apartmentId)
-  return apartment ? apartment.number : 'Неизвестная квартира'
+  return apartment ? apartment.number : 'Неизвестно'
 }
 
 const getResidentName = (residentId) => {
   const resident = residentsStore.residents.find(r => r.id === residentId)
-  return resident ? `${resident.lastName} ${resident.firstName}` : 'Неизвестный жилец'
+  return resident ? `${resident.lastName} ${resident.firstName}` : 'Неизвестно'
+}
+
+const getStatusLabel = (status) => {
+  const statusMap = {
+    pending: 'Ожидает оплаты',
+    paid: 'Оплачен',
+    overdue: 'Просрочен'
+  }
+  return statusMap[status] || status
+}
+
+const getPaymentTypeLabel = (type) => {
+  const typeMap = {
+    utility: 'Коммунальные услуги',
+    rent: 'Аренда',
+    other: 'Прочее'
+  }
+  return typeMap[type] || type
+}
+
+const getStatusColor = (status) => {
+  const colorMap = {
+    pending: 'warning',
+    paid: 'positive',
+    overdue: 'negative'
+  }
+  return colorMap[status] || 'grey'
 }
 
 // Методы загрузки данных
@@ -682,9 +705,10 @@ const loadInitialData = async () => {
 
 const loadInvoices = async () => {
   try {
-    // Применяем только фильтр по buildingId на уровне Firestore
     const filters = {
-      buildingId: selectedBuilding.value
+      buildingId: selectedBuilding.value,
+      apartmentId: selectedApartment.value,
+      residentId: selectedResident.value
     }
     await invoicesStore.fetchInvoices(filters)
   } catch (error) {
@@ -694,9 +718,10 @@ const loadInvoices = async () => {
 
 const loadPayments = async () => {
   try {
-    // Применяем только фильтр по buildingId на уровне Firestore
     const filters = {
-      buildingId: selectedBuilding.value
+      buildingId: selectedBuilding.value,
+      apartmentId: selectedApartment.value,
+      residentId: selectedResident.value
     }
     await paymentsStore.fetchPayments(filters)
   } catch (error) {
@@ -706,9 +731,10 @@ const loadPayments = async () => {
 
 const loadReceipts = async () => {
   try {
-    // Применяем только фильтр по buildingId на уровне Firestore
     const filters = {
-      buildingId: selectedBuilding.value
+      buildingId: selectedBuilding.value,
+      apartmentId: selectedApartment.value,
+      residentId: selectedResident.value
     }
     await receiptsStore.fetchReceipts(filters)
   } catch (error) {
@@ -718,9 +744,10 @@ const loadReceipts = async () => {
 
 const loadDebts = async () => {
   try {
-    // Применяем только фильтр по buildingId на уровне Firestore
     const filters = {
-      buildingId: selectedBuilding.value
+      buildingId: selectedBuilding.value,
+      apartmentId: selectedApartment.value,
+      residentId: selectedResident.value
     }
     await debtsStore.fetchDebts(filters)
   } catch (error) {
@@ -742,10 +769,10 @@ const updateSelectedBuilding = async (building) => {
     
     // Загружаем данные для выбранного здания
     await Promise.all([
+      loadInvoices(),
       loadPayments(),
       loadReceipts(),
-      loadDebts(),
-      loadInvoices()
+      loadDebts()
     ])
   } catch (error) {
     console.error('Ошибка при обновлении данных:', error)
@@ -766,10 +793,10 @@ const updateSelectedApartment = async (apartment) => {
     
     // Загружаем данные для выбранной квартиры
     await Promise.all([
+      loadInvoices(),
       loadPayments(),
       loadReceipts(),
-      loadDebts(),
-      loadInvoices()
+      loadDebts()
     ])
   } catch (error) {
     console.error('Ошибка при обновлении данных:', error)
@@ -785,10 +812,10 @@ const updateSelectedResident = async (resident) => {
     loading.value = true
     // Загружаем данные для выбранного жильца
     await Promise.all([
+      loadInvoices(),
       loadPayments(),
       loadReceipts(),
-      loadDebts(),
-      loadInvoices()
+      loadDebts()
     ])
   } catch (error) {
     console.error('Ошибка при обновлении данных:', error)
@@ -986,7 +1013,28 @@ watch([selectedBuilding, selectedApartment, selectedResident], async () => {
 }, { deep: true })
 
 onMounted(async () => {
-  await loadInitialData()
+  try {
+    loading.value = true
+    await Promise.all([
+      buildingsStore.fetchBuildings(),
+      servicesStore.fetchServices()
+    ])
+    
+    // Если есть выбранное здание, загружаем связанные данные
+    if (selectedBuilding.value) {
+      await Promise.all([
+        apartmentsStore.fetchApartments({ buildingId: selectedBuilding.value }),
+        loadInvoices(),
+        loadPayments(),
+        loadReceipts(),
+        loadDebts()
+      ])
+    }
+  } catch (error) {
+    console.error('Ошибка при инициализации:', error)
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 

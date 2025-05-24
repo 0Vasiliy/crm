@@ -9,7 +9,8 @@ import {
   deleteDoc, 
   doc,
   query,
-  orderBy
+  orderBy,
+  where
 } from 'firebase/firestore'
 
 export const useDebtsStore = defineStore('debts', () => {
@@ -23,26 +24,26 @@ export const useDebtsStore = defineStore('debts', () => {
     try {
       console.log('Загрузка задолженностей с фильтрами:', filters)
       const debtsRef = collection(db, 'debts')
-      const q = query(debtsRef, orderBy('date', 'desc'))
+      let q = query(debtsRef, orderBy('date', 'desc'))
+
+      // Применяем все фильтры на уровне Firestore
+      if (filters.buildingId) {
+        q = query(q, where('buildingId', '==', filters.buildingId))
+      }
+      if (filters.apartmentId) {
+        q = query(q, where('apartmentId', '==', filters.apartmentId))
+      }
+      if (filters.residentId) {
+        q = query(q, where('residentId', '==', filters.residentId))
+      }
 
       const querySnapshot = await getDocs(q)
-      let debtsList = []
+      const debtsList = []
       
       querySnapshot.forEach((doc) => {
         const debt = { id: doc.id, ...doc.data() }
         debtsList.push(debt)
       })
-
-      // Фильтруем на клиенте
-      if (filters.buildingId) {
-        debtsList = debtsList.filter(d => d.buildingId === filters.buildingId)
-      }
-      if (filters.apartmentId) {
-        debtsList = debtsList.filter(d => d.apartmentId === filters.apartmentId)
-      }
-      if (filters.residentId) {
-        debtsList = debtsList.filter(d => d.residentId === filters.residentId)
-      }
 
       console.log('Загружено задолженностей:', debtsList.length)
       debts.value = debtsList

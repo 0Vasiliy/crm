@@ -49,23 +49,20 @@ export const useInvoicesStore = defineStore('invoices', () => {
     try {
       console.log('Загрузка счетов с фильтрами:', filters)
       const invoicesRef = collection(db, 'invoices')
-      let q = query(invoicesRef)
+      
+      // Создаем базовый запрос с сортировкой по дате
+      let q = query(invoicesRef, orderBy('date', 'desc'))
 
-      // Применяем фильтры последовательно
+      // Применяем все фильтры на уровне Firestore
       if (filters.buildingId) {
         q = query(q, where('buildingId', '==', filters.buildingId))
       }
-      
       if (filters.apartmentId) {
         q = query(q, where('apartmentId', '==', filters.apartmentId))
       }
-      
       if (filters.residentId) {
         q = query(q, where('residentId', '==', filters.residentId))
       }
-
-      // Добавляем сортировку по дате
-      q = query(q, orderBy('date', 'desc'))
 
       const querySnapshot = await getDocs(q)
       const invoices = []
@@ -96,11 +93,11 @@ export const useInvoicesStore = defineStore('invoices', () => {
       })
       const newInvoice = { id: docRef.id, ...invoiceData }
       invoices.value.unshift(newInvoice)
-        return docRef.id
-      } catch (error) {
+      return docRef.id
+    } catch (error) {
       console.error('Ошибка при добавлении счета:', error)
-        throw error
-      }
+      throw error
+    }
   }
 
   const updateInvoice = async (id, invoiceData) => {
@@ -111,13 +108,13 @@ export const useInvoicesStore = defineStore('invoices', () => {
         updatedAt: new Date().toISOString()
       })
       const index = invoices.value.findIndex(i => i.id === id)
-        if (index !== -1) {
+      if (index !== -1) {
         invoices.value[index] = { ...invoices.value[index], ...invoiceData }
-        }
-      } catch (error) {
-      console.error('Ошибка при обновлении счета:', error)
-        throw error
       }
+    } catch (error) {
+      console.error('Ошибка при обновлении счета:', error)
+      throw error
+    }
   }
 
   const deleteInvoice = async (id) => {
@@ -125,9 +122,9 @@ export const useInvoicesStore = defineStore('invoices', () => {
       const invoiceRef = doc(db, 'invoices', id)
       await deleteDoc(invoiceRef)
       invoices.value = invoices.value.filter(i => i.id !== id)
-      } catch (error) {
+    } catch (error) {
       console.error('Ошибка при удалении счета:', error)
-        throw error
+      throw error
     }
   }
 
