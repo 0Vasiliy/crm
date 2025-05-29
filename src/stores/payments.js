@@ -1,105 +1,172 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc,
-  query,
-  orderBy,
-  where
-} from 'firebase/firestore'
 
 export const usePaymentsStore = defineStore('payments', () => {
   const payments = ref([])
   const loading = ref(false)
   const error = ref(null)
 
+  // Получение платежей с фильтрами
   const fetchPayments = async (filters = {}) => {
     loading.value = true
     error.value = null
     try {
-      console.log('Загрузка платежей с фильтрами:', filters)
-      const paymentsRef = collection(db, 'payments')
-      let q = query(paymentsRef, orderBy('date', 'desc'))
+      let q = collection(db, 'payments')
+      const constraints = []
 
-      // Применяем все фильтры на уровне Firestore
       if (filters.buildingId) {
-        q = query(q, where('buildingId', '==', filters.buildingId))
+        constraints.push(where('buildingId', '==', filters.buildingId))
       }
       if (filters.apartmentId) {
-        q = query(q, where('apartmentId', '==', filters.apartmentId))
+        constraints.push(where('apartmentId', '==', filters.apartmentId))
       }
       if (filters.residentId) {
-        q = query(q, where('residentId', '==', filters.residentId))
+        constraints.push(where('residentId', '==', filters.residentId))
+      }
+      if (filters.status) {
+        constraints.push(where('status', '==', filters.status))
+      }
+      if (filters.type) {
+        constraints.push(where('type', '==', filters.type))
+      }
+      if (filters.startDate) {
+        constraints.push(where('date', '>=', Timestamp.fromDate(new Date(filters.startDate))))
+      }
+      if (filters.endDate) {
+        constraints.push(where('date', '<=', Timestamp.fromDate(new Date(filters.endDate))))
       }
 
-      const querySnapshot = await getDocs(q)
-      const paymentsList = []
-      
-      querySnapshot.forEach((doc) => {
-        const payment = { id: doc.id, ...doc.data() }
-        paymentsList.push(payment)
-      })
+      constraints.push(orderBy('date', 'desc'))
+      q = query(q, ...constraints)
 
-      console.log('Загружено платежей:', paymentsList.length)
-      payments.value = paymentsList
-      return paymentsList
-    } catch (error) {
-      console.error('Ошибка при загрузке платежей:', error)
-      throw error
+      const querySnapshot = await getDocs(q)
+      payments.value = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date.toDate().toISOString()
+      }))
+    } catch (err) {
+      error.value = err.message
+      console.error('Ошибка при загрузке платежей:', err)
+      throw err
     } finally {
       loading.value = false
     }
   }
 
+  // Добавление нового платежа
   const addPayment = async (paymentData) => {
     try {
-      const paymentsRef = collection(db, 'payments')
-      const docRef = await addDoc(paymentsRef, {
+      const dataToSave = {
         ...paymentData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      })
-      const newPayment = { id: docRef.id, ...paymentData }
-      payments.value.push(newPayment)
-      return docRef.id
-    } catch (error) {
-      console.error('Ошибка при добавлении платежа:', error)
-      throw error
+        date: Timestamp.fromDate(new Date(paymentData.date)),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      }
+
+      const docRef = await addDoc(collection(db, 'payments'), dataToSave)
+      const newPayment = {
+        id: docRef.id,
+        ...dataToSave,
+        date: dataToSave.date.toDate().toISOString()
+      }
+      payments.value.unshift(newPayment)
+      return newPayment
+    } catch (err) {
+      error.value = err.message
+      console.error('Ошибка при добавлении платежа:', err)
+      throw err
     }
   }
 
+  // Обновление платежа
   const updatePayment = async (id, paymentData) => {
+    try {
+      const dataToUpdate = {
+        ...paymentData,
+        date: Timestamp.fromDate(new Date(paymentData.date)),
+        updatedAt: Timestamp.now()
+      }
+
+      const paymentRef = doc(db, 'payments', id)
+      await updateDoc(paymentRef, dataToUpdate)
+      
+      const index = payments.value.findIndex(p => p.id === id)
+      if (index !== -1) {
+        payments.value[index] = {
+          ...payments.value[index],
+          ...dataToUpdate,
+          date: dataToUpdate.date.toDate().toDate().toISOString()
+        }
+      }
+    } catch (err) {
+      error.value = err.message
+      console.error('Ошибка при обновлении платежа:', err)
+      throw err
+    }
+  }
+
+  // Удаление платежа
+  const deletePayment = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'payments', id))
+      payments.value = payments.value.filter(p => p.id !== id)
+    } catch (err) {
+      error.value = err.message
+      console.error('Ошибка при удалении платежа:', err)
+      throw err
+    }
+  }
+
+  // Обновление статуса платежа
+  const updatePaymentStatus = async (id, status) => {
     try {
       const paymentRef = doc(db, 'payments', id)
       await updateDoc(paymentRef, {
-        ...paymentData,
-        updatedAt: new Date().toISOString()
+        status,
+        updatedAt: Timestamp.now()
       })
+      
       const index = payments.value.findIndex(p => p.id === id)
       if (index !== -1) {
-        payments.value[index] = { ...payments.value[index], ...paymentData }
+        payments.value[index].status = status
       }
-    } catch (error) {
-      console.error('Ошибка при обновлении платежа:', error)
-      throw error
+    } catch (err) {
+      error.value = err.message
+      console.error('Ошибка при обновлении статуса платежа:', err)
+      throw err
     }
   }
 
-  const deletePayment = async (id) => {
-    try {
-      const paymentRef = doc(db, 'payments', id)
-      await deleteDoc(paymentRef)
-      payments.value = payments.value.filter(p => p.id !== id)
-    } catch (error) {
-      console.error('Ошибка при удалении платежа:', error)
-      throw error
-    }
-  }
+  // Вычисляемые свойства
+  const getPaymentsByBuilding = computed(() => (buildingId) => {
+    return payments.value.filter(payment => payment.buildingId === buildingId)
+  })
+
+  const getPaymentsByApartment = computed(() => (apartmentId) => {
+    return payments.value.filter(payment => payment.apartmentId === apartmentId)
+  })
+
+  const getPaymentsByResident = computed(() => (residentId) => {
+    return payments.value.filter(payment => payment.residentId === residentId)
+  })
+
+  const getTotalPaymentsByBuilding = computed(() => (buildingId) => {
+    const buildingPayments = getPaymentsByBuilding.value(buildingId)
+    return buildingPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
+  })
+
+  const getTotalPaymentsByApartment = computed(() => (apartmentId) => {
+    const apartmentPayments = getPaymentsByApartment.value(apartmentId)
+    return apartmentPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
+  })
+
+  const getTotalPaymentsByResident = computed(() => (residentId) => {
+    const residentPayments = getPaymentsByResident.value(residentId)
+    return residentPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
+  })
 
   return {
     payments,
@@ -108,6 +175,13 @@ export const usePaymentsStore = defineStore('payments', () => {
     fetchPayments,
     addPayment,
     updatePayment,
-    deletePayment
+    deletePayment,
+    updatePaymentStatus,
+    getPaymentsByBuilding,
+    getPaymentsByApartment,
+    getPaymentsByResident,
+    getTotalPaymentsByBuilding,
+    getTotalPaymentsByApartment,
+    getTotalPaymentsByResident
   }
 }) 

@@ -19,40 +19,45 @@ export const useDebtsStore = defineStore('debts', () => {
   const error = ref(null)
 
   const fetchDebts = async (filters = {}) => {
-    loading.value = true
-    error.value = null
     try {
-      console.log('Загрузка задолженностей с фильтрами:', filters)
+      const constraints = []
       const debtsRef = collection(db, 'debts')
-      let q = query(debtsRef, orderBy('date', 'desc'))
-
-      // Применяем все фильтры на уровне Firestore
+      
       if (filters.buildingId) {
-        q = query(q, where('buildingId', '==', filters.buildingId))
+        constraints.push(where('buildingId', '==', filters.buildingId))
       }
       if (filters.apartmentId) {
-        q = query(q, where('apartmentId', '==', filters.apartmentId))
+        constraints.push(where('apartmentId', '==', filters.apartmentId))
       }
       if (filters.residentId) {
-        q = query(q, where('residentId', '==', filters.residentId))
+        constraints.push(where('residentId', '==', filters.residentId))
       }
-
-      const querySnapshot = await getDocs(q)
-      const debtsList = []
+      if (filters.status) {
+        if (Array.isArray(filters.status)) {
+          constraints.push(where('status', 'in', filters.status))
+        } else {
+          constraints.push(where('status', '==', filters.status))
+        }
+      }
       
-      querySnapshot.forEach((doc) => {
-        const debt = { id: doc.id, ...doc.data() }
-        debtsList.push(debt)
+      // Добавляем сортировку по дате
+      constraints.push(orderBy('date', 'desc'))
+      
+      const q = query(debtsRef, ...constraints)
+      const snapshot = await getDocs(q)
+      
+      debts.value = snapshot.docs.map(doc => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date?.toDate ? data.date.toDate().toISOString() : data.date,
+          dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate
+        }
       })
-
-      console.log('Загружено задолженностей:', debtsList.length)
-      debts.value = debtsList
-      return debtsList
     } catch (error) {
       console.error('Ошибка при загрузке задолженностей:', error)
       throw error
-    } finally {
-      loading.value = false
     }
   }
 

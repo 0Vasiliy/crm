@@ -99,25 +99,31 @@
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedBuilding"
-                        :options="buildings"
+                        :options="buildingOptions"
                         label="Выберите дом"
                         @update:model-value="updateSelectedBuilding"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedApartment"
-                        :options="filteredApartments"
+                        :options="apartmentOptions"
                         label="Выберите квартиру"
                         @update:model-value="updateSelectedApartment"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedResident"
-                        :options="filteredResidents"
+                        :options="residentOptions"
                         label="Выберите жильца"
                         @update:model-value="updateSelectedResident"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
@@ -198,25 +204,31 @@
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedBuilding"
-                        :options="buildings"
+                        :options="buildingOptions"
                         label="Выберите дом"
                         @update:model-value="updateSelectedBuilding"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedApartment"
-                        :options="filteredApartments"
+                        :options="apartmentOptions"
                         label="Выберите квартиру"
                         @update:model-value="updateSelectedApartment"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedResident"
-                        :options="filteredResidents"
+                        :options="residentOptions"
                         label="Выберите жильца"
                         @update:model-value="updateSelectedResident"
+                        emit-value
+                        map-options
                       />
                     </div>
                   </div>
@@ -243,25 +255,31 @@
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedBuilding"
-                        :options="buildings"
+                        :options="buildingOptions"
                         label="Выберите дом"
                         @update:model-value="updateSelectedBuilding"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedApartment"
-                        :options="filteredApartments"
+                        :options="apartmentOptions"
                         label="Выберите квартиру"
                         @update:model-value="updateSelectedApartment"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedResident"
-                        :options="filteredResidents"
+                        :options="residentOptions"
                         label="Выберите жильца"
                         @update:model-value="updateSelectedResident"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
@@ -339,9 +357,11 @@
                     <div class="col-12 col-md-3">
                       <q-select
                         v-model="selectedBuilding"
-                        :options="buildings"
+                        :options="buildingOptions"
                         label="Выберите дом"
                         @update:model-value="updateSelectedBuilding"
+                        emit-value
+                        map-options
                       />
                     </div>
                     <div class="col-12 col-md-3">
@@ -646,16 +666,19 @@ const formatDate = (dateString) => {
 }
 
 const getBuildingName = (buildingId) => {
+  if (!buildingsStore.buildings.length) return 'Загрузка...'
   const building = buildingsStore.buildings.find(b => b.id === buildingId)
   return building ? building.name : 'Неизвестно'
 }
 
 const getApartmentNumber = (apartmentId) => {
+  if (!apartmentsStore.apartments.length) return 'Загрузка...'
   const apartment = apartmentsStore.apartments.find(a => a.id === apartmentId)
   return apartment ? apartment.number : 'Неизвестно'
 }
 
 const getResidentName = (residentId) => {
+  if (!residentsStore.residents.length) return 'Загрузка...'
   const resident = residentsStore.residents.find(r => r.id === residentId)
   return resident ? `${resident.lastName} ${resident.firstName}` : 'Неизвестно'
 }
@@ -693,6 +716,8 @@ const loadInitialData = async () => {
     loading.value = true
     await Promise.all([
       buildingsStore.fetchBuildings(),
+      apartmentsStore.fetchApartments(),
+      residentsStore.fetchResidents(),
       servicesStore.fetchServices()
     ])
     console.log('Загружено зданий:', buildingsStore.buildings.length)
@@ -710,6 +735,7 @@ const loadInvoices = async () => {
       apartmentId: selectedApartment.value,
       residentId: selectedResident.value
     }
+    console.log('Загрузка счетов с фильтрами:', filters)
     await invoicesStore.fetchInvoices(filters)
   } catch (error) {
     console.error('Ошибка при загрузке счетов:', error)
@@ -723,6 +749,7 @@ const loadPayments = async () => {
       apartmentId: selectedApartment.value,
       residentId: selectedResident.value
     }
+    console.log('Загрузка платежей с фильтрами:', filters)
     await paymentsStore.fetchPayments(filters)
   } catch (error) {
     console.error('Ошибка при загрузке платежей:', error)
@@ -736,6 +763,7 @@ const loadReceipts = async () => {
       apartmentId: selectedApartment.value,
       residentId: selectedResident.value
     }
+    console.log('Загрузка квитанций с фильтрами:', filters)
     await receiptsStore.fetchReceipts(filters)
   } catch (error) {
     console.error('Ошибка при загрузке квитанций:', error)
@@ -749,15 +777,17 @@ const loadDebts = async () => {
       apartmentId: selectedApartment.value,
       residentId: selectedResident.value
     }
+    console.log('Загрузка задолженностей с фильтрами:', filters)
     await debtsStore.fetchDebts(filters)
   } catch (error) {
-    console.error('Ошибка при загрузке долгов:', error)
+    console.error('Ошибка при загрузке задолженностей:', error)
   }
 }
 
 // Методы обновления выбранных значений
 const updateSelectedBuilding = async (building) => {
-  selectedBuilding.value = building?.value || null
+  console.log('Выбран дом:', building)
+  selectedBuilding.value = building
   selectedApartment.value = null
   selectedResident.value = null
   
@@ -782,7 +812,8 @@ const updateSelectedBuilding = async (building) => {
 }
 
 const updateSelectedApartment = async (apartment) => {
-  selectedApartment.value = apartment?.value || null
+  console.log('Выбрана квартира:', apartment)
+  selectedApartment.value = apartment
   selectedResident.value = null
   
   try {
@@ -806,7 +837,8 @@ const updateSelectedApartment = async (apartment) => {
 }
 
 const updateSelectedResident = async (resident) => {
-  selectedResident.value = resident?.value || null
+  console.log('Выбран жилец:', resident)
+  selectedResident.value = resident
   
   try {
     loading.value = true
@@ -1015,10 +1047,7 @@ watch([selectedBuilding, selectedApartment, selectedResident], async () => {
 onMounted(async () => {
   try {
     loading.value = true
-    await Promise.all([
-      buildingsStore.fetchBuildings(),
-      servicesStore.fetchServices()
-    ])
+    await loadInitialData()
     
     // Если есть выбранное здание, загружаем связанные данные
     if (selectedBuilding.value) {

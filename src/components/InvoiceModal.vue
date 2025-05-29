@@ -4,86 +4,95 @@
     @update:model-value="$emit('update:show', $event)"
     persistent
   >
-    <q-card style="min-width: 500px">
+    <q-card style="min-width: 600px">
       <q-card-section>
         <div class="text-h6">{{ editingInvoice ? 'Редактировать счет' : 'Новый счет' }}</div>
       </q-card-section>
 
       <q-card-section>
         <div class="row q-col-gutter-md">
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-4">
             <q-select
               v-model="form.buildingId"
               :options="buildings"
               label="Здание"
               @update:model-value="handleBuildingChange"
+              emit-value
+              map-options
             />
           </div>
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-4">
             <q-select
               v-model="form.apartmentId"
-              :options="filteredApartments"
+              :options="apartments"
               label="Квартира"
               @update:model-value="handleApartmentChange"
+              emit-value
+              map-options
             />
           </div>
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-4">
             <q-select
               v-model="form.residentId"
-              :options="filteredResidents"
+              :options="residents"
               label="Жилец"
+              emit-value
+              map-options
             />
           </div>
+        </div>
+
+        <div class="row q-col-gutter-md q-mt-md">
           <div class="col-12 col-md-6">
             <q-select
               v-model="form.period.month"
               :options="months"
               label="Месяц"
+              emit-value
+              map-options
             />
           </div>
           <div class="col-12 col-md-6">
             <q-input
-              v-model.number="form.period.year"
+              v-model="form.period.year"
               type="number"
               label="Год"
             />
           </div>
+        </div>
+
+        <!-- Секция коммунальных услуг -->
+        <div class="row q-col-gutter-md q-mt-md">
           <div class="col-12">
-            <div class="text-subtitle2 q-mb-sm">Услуги</div>
-            <div v-for="(service, index) in services" :key="service.id" class="row q-col-gutter-md q-mb-md">
+            <div class="text-subtitle2 q-mb-sm">Коммунальные услуги</div>
+            <div v-for="utility in availableUtilities" :key="utility.id" class="row q-col-gutter-md q-mb-md">
               <div class="col-12 col-md-6">
                 <q-input
-                  v-model.number="form.services[service.id].amount"
+                  v-model="form.services[utility.id].consumption"
                   type="number"
-                  :label="service.name"
-                  prefix="₽"
-                  @update:model-value="handleServiceChange(service.id, 'amount', $event)"
+                  :label="`${utility.name} (${utility.unit})`"
+                  @update:model-value="calculateServiceAmount(utility)"
                 />
               </div>
               <div class="col-12 col-md-6">
                 <q-input
-                  v-model="form.services[service.id].quantity"
+                  v-model="form.services[utility.id].amount"
                   type="number"
-                  :label="`Количество (${service.unit})`"
-                  @update:model-value="handleServiceChange(service.id, 'quantity', $event)"
+                  label="Сумма"
+                  readonly
                 />
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="row q-col-gutter-md q-mt-md">
           <div class="col-12">
             <q-input
-              v-model.number="form.total"
+              v-model="form.total"
               type="number"
               label="Итоговая сумма"
-              prefix="₽"
               readonly
-            />
-          </div>
-          <div class="col-12 col-md-6">
-            <q-select
-              v-model="form.status"
-              :options="statusOptions"
-              label="Статус"
             />
           </div>
         </div>
@@ -104,7 +113,7 @@ import { useApartmentsStore } from '../stores/apartments'
 import { useResidentsStore } from '../stores/residents'
 import { useUtilitiesStore } from '../stores/utilities'
 import { useInvoicesStore } from '../stores/invoices'
-import { useServicesStore } from '../stores/services'
+import { useDebtsStore } from '../stores/debts'
 
 const props = defineProps({
   show: Boolean,
@@ -119,7 +128,7 @@ const apartmentsStore = useApartmentsStore()
 const residentsStore = useResidentsStore()
 const utilitiesStore = useUtilitiesStore()
 const invoicesStore = useInvoicesStore()
-const servicesStore = useServicesStore()
+const debtsStore = useDebtsStore()
 
 // Состояния
 const loading = ref(false)
@@ -153,29 +162,23 @@ const months = [
   { label: 'Декабрь', value: 12 }
 ]
 
-const statusOptions = [
-  { label: 'Ожидает оплаты', value: 'pending' },
-  { label: 'Оплачен', value: 'paid' },
-  { label: 'Просрочен', value: 'overdue' }
-]
-
 // Вычисляемые свойства
 const buildings = computed(() => buildingsStore.buildings.map(building => ({
   label: building.name,
   value: building.id
 })))
 
-const filteredApartments = computed(() => {
+const apartments = computed(() => {
   if (!form.value.buildingId) return []
   return apartmentsStore.apartments
     .filter(apartment => apartment.buildingId === form.value.buildingId)
     .map(apartment => ({
-      label: apartment.number,
+      label: `Квартира ${apartment.number}`,
       value: apartment.id
     }))
 })
 
-const filteredResidents = computed(() => {
+const residents = computed(() => {
   if (!form.value.apartmentId) return []
   return residentsStore.residents
     .filter(resident => resident.apartmentId === form.value.apartmentId)
@@ -185,84 +188,103 @@ const filteredResidents = computed(() => {
     }))
 })
 
-const services = computed(() => {
-  return servicesStore.services.map(service => ({
-    ...service,
-    amount: form.value.services[service.id]?.amount || 0,
-    quantity: form.value.services[service.id]?.quantity || 0
-  }))
-})
-
-const total = computed(() => {
-  return services.value.reduce((sum, service) => {
-    return sum + (service.amount * service.quantity)
-  }, 0)
+const availableUtilities = computed(() => {
+  if (!form.value.buildingId) return []
+  return utilitiesStore.utilities.filter(utility => 
+    utility.buildingId === form.value.buildingId && 
+    utility.status === 'active'
+  )
 })
 
 // Методы
 const handleBuildingChange = async (buildingId) => {
-  form.value.buildingId = buildingId
-  form.value.apartmentId = null
-  form.value.residentId = null
+  form.value.apartmentId = ''
+  form.value.residentId = ''
   form.value.services = {}
-  form.value.total = 0
-  
-  try {
-    loading.value = true
-    await apartmentsStore.fetchApartments({ buildingId })
-  } catch (error) {
-    console.error('Ошибка при загрузке квартир:', error)
-  } finally {
-    loading.value = false
-  }
+  await apartmentsStore.fetchApartments({ buildingId })
+  await utilitiesStore.fetchUtilities({ buildingId })
 }
 
 const handleApartmentChange = async (apartmentId) => {
-  form.value.apartmentId = apartmentId
-  form.value.residentId = null
-  form.value.services = {}
-  form.value.total = 0
-  
-  try {
-    loading.value = true
-    await residentsStore.fetchResidents({ apartmentId })
-  } catch (error) {
-    console.error('Ошибка при загрузке жильцов:', error)
-  } finally {
-    loading.value = false
-  }
+  form.value.residentId = ''
+  await residentsStore.fetchResidents({ apartmentId })
 }
 
-const handleResidentChange = (residentId) => {
-  form.value.residentId = residentId
-  form.value.services = {}
-  form.value.total = 0
+const calculateServiceAmount = (utility) => {
+  const consumption = form.value.services[utility.id]?.consumption || 0
+  form.value.services[utility.id] = {
+    ...form.value.services[utility.id],
+    amount: consumption * utility.rate
+  }
+  calculateTotal()
 }
 
-const handleServiceChange = (serviceId, field, value) => {
-  if (!form.value.services[serviceId]) {
-    form.value.services[serviceId] = {
-      amount: 0,
-      quantity: 0
-    }
-  }
-  form.value.services[serviceId][field] = value
-  form.value.total = total.value
+const calculateTotal = () => {
+  form.value.total = Object.values(form.value.services).reduce((sum, service) => 
+    sum + (service.amount || 0), 0
+  )
 }
 
 const saveInvoice = async () => {
   try {
     loading.value = true
-    console.log('Сохранение счета:', form.value)
     
-    if (props.editingInvoice) {
-      await invoicesStore.updateInvoice(props.editingInvoice.id, form.value)
-      console.log('Счет обновлен')
-    } else {
-      await invoicesStore.addInvoice(form.value)
-      console.log('Счет добавлен')
+    // Проверяем наличие задолженностей
+    const existingDebts = await debtsStore.fetchDebts({
+      buildingId: form.value.buildingId,
+      apartmentId: form.value.apartmentId,
+      residentId: form.value.residentId,
+      status: ['pending', 'overdue']
+    })
+
+    // Проверяем наличие неоплаченных счетов
+    const existingInvoices = await invoicesStore.fetchInvoices({
+      buildingId: form.value.buildingId,
+      apartmentId: form.value.apartmentId,
+      residentId: form.value.residentId,
+      status: ['pending', 'overdue']
+    })
+
+    const totalDebt = existingDebts.reduce((sum, debt) => sum + debt.amount, 0)
+    const totalInvoices = existingInvoices.reduce((sum, invoice) => sum + invoice.total, 0)
+
+    if (totalDebt > 0 || totalInvoices > 0) {
+      const confirmMessage = `У жильца есть существующие задолженности:\n` +
+        `Задолженности: ${totalDebt.toLocaleString('ru-RU')} ₽\n` +
+        `Неоплаченные счета: ${totalInvoices.toLocaleString('ru-RU')} ₽\n\n` +
+        `Вы уверены, что хотите создать новый счет?`
+      
+      if (!confirm(confirmMessage)) {
+        return
+      }
     }
-    
+
+    const invoiceData = {
+      ...form.value,
+      services: Object.entries(form.value.services).map(([utilityId, data]) => ({
+        utilityId,
+        consumption: data.consumption,
+        amount: data.amount
+      }))
+    }
+
+    if (props.editingInvoice) {
+      await invoicesStore.updateInvoice(props.editingInvoice.id, invoiceData)
+    } else {
+      await invoicesStore.addInvoice(invoiceData)
+    }
+
+    // Обновляем статус задолженности
+    if (existingDebts.length > 0) {
+      await Promise.all(existingDebts.map(debt => 
+        debtsStore.updateDebt(debt.id, { 
+          ...debt,
+          status: 'pending',
+          updatedAt: new Date().toISOString()
+        })
+      ))
+    }
+
     emit('saved')
     emit('update:show', false)
   } catch (error) {
@@ -272,64 +294,38 @@ const saveInvoice = async () => {
   }
 }
 
-// Инициализация
-onMounted(async () => {
-  try {
-    loading.value = true
-    if (!buildingsStore.buildings.length) {
-      await buildingsStore.fetchBuildings()
+// Наблюдатели
+watch(() => props.show, (newValue) => {
+  if (newValue && props.editingInvoice) {
+    form.value = { ...props.editingInvoice }
+  } else if (newValue) {
+    form.value = {
+      buildingId: '',
+      apartmentId: '',
+      residentId: '',
+      period: {
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear()
+      },
+      services: {},
+      total: 0,
+      status: 'pending',
+      date: new Date().toISOString()
     }
-    if (!utilitiesStore.utilities.length) {
-      await utilitiesStore.fetchUtilities()
-    }
-    if (!servicesStore.services.length) {
-      await servicesStore.fetchServices()
-    }
-    
-    if (props.editingInvoice) {
-      if (props.editingInvoice.buildingId) {
-        await apartmentsStore.fetchApartments({ buildingId: props.editingInvoice.buildingId })
-      }
-      if (props.editingInvoice.apartmentId) {
-        await residentsStore.fetchResidents({ apartmentId: props.editingInvoice.apartmentId })
-      }
-    } else {
-      form.value = {
-        buildingId: props.invoiceForm?.buildingId || '',
-        apartmentId: props.invoiceForm?.apartmentId || '',
-        residentId: props.invoiceForm?.residentId || '',
-        period: {
-          month: new Date().getMonth() + 1,
-          year: new Date().getFullYear()
-        },
-        services: {},
-        total: 0,
-        status: 'pending',
-        date: new Date().toISOString()
-      }
-    }
-  } catch (error) {
-    console.error('Ошибка при инициализации:', error)
-  } finally {
-    loading.value = false
   }
 })
 
-// Наблюдатель за изменением invoiceForm
-watch(() => props.invoiceForm, (newForm) => {
-  if (newForm) {
-    form.value = { ...newForm }
-    // Инициализируем услуги, если их нет
-    if (!form.value.services) {
-      form.value.services = {}
-    }
-    form.value.total = total.value
-  }
-}, { deep: true })
+// Инициализация
+onMounted(async () => {
+  await Promise.all([
+    buildingsStore.fetchBuildings(),
+    utilitiesStore.fetchUtilities()
+  ])
+})
 </script>
 
 <style scoped>
 .q-card {
-  min-width: 500px;
+  min-width: 600px;
 }
 </style> 

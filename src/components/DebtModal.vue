@@ -81,6 +81,7 @@ import { useBuildingsStore } from '../stores/buildings'
 import { useApartmentsStore } from '../stores/apartments'
 import { useResidentsStore } from '../stores/residents'
 import { useDebtsStore } from '../stores/debts'
+import { useInvoicesStore } from '../stores/invoices'
 import { date } from 'quasar'
 
 const props = defineProps({
@@ -94,6 +95,7 @@ const buildingsStore = useBuildingsStore()
 const apartmentsStore = useApartmentsStore()
 const residentsStore = useResidentsStore()
 const debtsStore = useDebtsStore()
+const invoicesStore = useInvoicesStore()
 
 // Флаг монтирования компонента
 const isMounted = ref(false)
@@ -160,18 +162,44 @@ const loadResidents = async () => {
 
 const saveDebt = async () => {
   try {
-    console.log('Сохранение задолженности:', form.value)
-    if (props.editingDebt) {
-      await debtsStore.updateDebt(props.editingDebt.id, form.value)
-      console.log('Задолженность обновлена')
-    } else {
-      await debtsStore.addDebt(form.value)
-      console.log('Задолженность добавлена')
+    loading.value = true
+
+    // Проверяем наличие неоплаченных счетов
+    const existingInvoices = await invoicesStore.fetchInvoices({
+      buildingId: form.value.buildingId,
+      apartmentId: form.value.apartmentId,
+      residentId: form.value.residentId,
+      status: ['pending', 'overdue']
+    })
+
+    const totalInvoices = existingInvoices.reduce((sum, invoice) => sum + invoice.total, 0)
+
+    if (totalInvoices > 0) {
+      const confirmMessage = `У жильца есть неоплаченные счета на сумму ${totalInvoices.toLocaleString('ru-RU')} ₽\n\n` +
+        `Вы уверены, что хотите создать дополнительную задолженность?`
+      
+      if (!confirm(confirmMessage)) {
+        return
+      }
     }
+
+    const debtData = {
+      ...form.value,
+      date: new Date().toISOString()
+    }
+
+    if (props.editingDebt) {
+      await debtsStore.updateDebt(props.editingDebt.id, debtData)
+    } else {
+      await debtsStore.addDebt(debtData)
+    }
+
     emit('saved')
     emit('update:show', false)
   } catch (error) {
     console.error('Ошибка при сохранении задолженности:', error)
+  } finally {
+    loading.value = false
   }
 }
 
