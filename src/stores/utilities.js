@@ -7,7 +7,9 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc
+  doc,
+  query,
+  where
 } from 'firebase/firestore'
 
 // Создание хранилища Pinia для управления услугами
@@ -17,13 +19,24 @@ export const useUtilitiesStore = defineStore('utilities', () => {
   const loading = ref(false) // Флаг загрузки
   const error = ref(null) // Ошибки
 
-  // Получение списка услуг
-  const fetchUtilities = async () => {
+  // Получение списка услуг с фильтрами
+  const fetchUtilities = async (filters = {}) => {
     loading.value = true
     error.value = null
     try {
-      const querySnapshot = await getDocs(collection(db, 'utilities'))
-      utilities.value = querySnapshot.docs.map(doc => {
+      console.log('Загрузка коммунальных услуг с фильтрами:', filters)
+      const utilitiesRef = collection(db, 'utilities')
+      let q = query(utilitiesRef)
+
+      if (filters.buildingId) {
+        q = query(q, where('buildingId', '==', filters.buildingId))
+      }
+      if (filters.status) {
+        q = query(q, where('status', '==', filters.status))
+      }
+
+      const querySnapshot = await getDocs(q)
+      const utilitiesList = querySnapshot.docs.map(doc => {
         const data = doc.data()
         return {
           id: doc.id,
@@ -35,7 +48,10 @@ export const useUtilitiesStore = defineStore('utilities', () => {
           createdAt: data.createdAt || new Date().toISOString()
         }
       })
-      console.log('Loaded utilities:', utilities.value) // Для отладки
+      
+      console.log('Загружено коммунальных услуг:', utilitiesList.length)
+      utilities.value = utilitiesList
+      return utilitiesList
     } catch (err) {
       error.value = err.message
       console.error('Error loading utilities:', err)

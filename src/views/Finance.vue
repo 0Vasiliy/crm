@@ -61,7 +61,14 @@
                       />
                     </div>
                     <div class="col-12 col-md-3">
-                      <q-btn color="primary" label="Выставить счёт" @click="addInvoice" />
+                      <q-btn 
+                        color="primary" 
+                        label="Выставить счёт" 
+                        @click="addInvoice"
+                        :disable="loading"
+                        :loading="loading"
+                        icon="add"
+                      />
                     </div>
                   </div>
                   
@@ -428,7 +435,9 @@
     <InvoiceModal
       v-model:show="showInvoiceModal"
       :editing-invoice="editingInvoice"
-      :invoice-form="invoiceForm"
+      :selected-building="selectedBuilding"
+      :selected-apartment="selectedApartment"
+      :selected-resident="selectedResident"
       @saved="saveInvoice"
     />
   </div>
@@ -478,20 +487,7 @@ const editingInvoice = ref(null)
 const selectedPayment = ref(null)
 const reportData = ref(null)
 
-// Форма счета
-const invoiceForm = ref({
-  buildingId: '',
-  apartmentId: '',
-  residentId: '',
-  period: {
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear()
-  },
-  services: {},
-  total: 0,
-  status: 'pending',
-  date: new Date().toISOString()
-})
+// Форма счета больше не нужна - данные передаются через props
 
 // Фильтры
 const selectedBuilding = ref(null)
@@ -635,6 +631,7 @@ const buildingOptions = computed(() => {
 
 const apartmentOptions = computed(() => {
   if (!selectedBuilding.value) return []
+  console.log('Доступные квартиры для здания:', apartmentsStore.apartments)
   return apartmentsStore.apartments
     .filter(apartment => apartment.buildingId === selectedBuilding.value)
     .map(apartment => ({
@@ -796,6 +793,7 @@ const updateSelectedBuilding = async (building) => {
     // Загружаем квартиры для выбранного здания
     await apartmentsStore.fetchApartments({ buildingId: selectedBuilding.value })
     console.log('Загружено квартир для здания:', apartmentsStore.apartments.length)
+    console.log('Опции квартир после загрузки:', apartmentOptions.value)
     
     // Загружаем данные для выбранного здания
     await Promise.all([
@@ -858,33 +856,22 @@ const updateSelectedResident = async (resident) => {
 
 // Методы работы со счетами
 const addInvoice = () => {
+  console.log('Создание нового счета:', {
+    building: selectedBuilding.value,
+    apartment: selectedApartment.value,
+    resident: selectedResident.value,
+    buildingOptions: buildingOptions.value,
+    apartmentOptions: apartmentOptions.value,
+    residentOptions: residentOptions.value
+  })
+  
   editingInvoice.value = null
-  invoiceForm.value = {
-    buildingId: selectedBuilding.value,
-    apartmentId: selectedApartment.value,
-    residentId: selectedResident.value,
-    period: {
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear()
-    },
-    services: {},
-    total: 0,
-    status: 'pending',
-    date: new Date().toISOString()
-  }
   showInvoiceModal.value = true
 }
 
 const saveInvoice = async () => {
   try {
     loading.value = true
-    if (editingInvoice.value) {
-      await invoicesStore.updateInvoice(editingInvoice.value.id, invoiceForm.value)
-    } else {
-      await invoicesStore.addInvoice(invoiceForm.value)
-    }
-    showInvoiceModal.value = false
-    editingInvoice.value = null
     
     // Обновляем все связанные данные
     await Promise.all([
@@ -893,8 +880,8 @@ const saveInvoice = async () => {
       loadReceipts(),
       loadDebts()
     ])
-    } catch (error) {
-    console.error('Ошибка при сохранении счета:', error)
+  } catch (error) {
+    console.error('Ошибка при обновлении данных после сохранения счета:', error)
   } finally {
     loading.value = false
   }
@@ -902,7 +889,6 @@ const saveInvoice = async () => {
 
 const editInvoice = (invoice) => {
   editingInvoice.value = invoice
-  invoiceForm.value = { ...invoice }
   showInvoiceModal.value = true
 }
 

@@ -118,7 +118,9 @@ import { useDebtsStore } from '../stores/debts'
 const props = defineProps({
   show: Boolean,
   editingInvoice: Object,
-  invoiceForm: Object
+  selectedBuilding: String,
+  selectedApartment: String,
+  selectedResident: String
 })
 
 const emit = defineEmits(['update:show', 'saved'])
@@ -169,23 +171,33 @@ const buildings = computed(() => buildingsStore.buildings.map(building => ({
 })))
 
 const apartments = computed(() => {
-  if (!form.value.buildingId) return []
-  return apartmentsStore.apartments
+  if (!form.value.buildingId) {
+    console.log('Нет выбранного здания для квартир')
+    return []
+  }
+  const filteredApartments = apartmentsStore.apartments
     .filter(apartment => apartment.buildingId === form.value.buildingId)
     .map(apartment => ({
       label: `Квартира ${apartment.number}`,
       value: apartment.id
     }))
+  console.log('Доступные квартиры для формы:', filteredApartments)
+  return filteredApartments
 })
 
 const residents = computed(() => {
-  if (!form.value.apartmentId) return []
-  return residentsStore.residents
+  if (!form.value.apartmentId) {
+    console.log('Нет выбранной квартиры для жильцов')
+    return []
+  }
+  const filteredResidents = residentsStore.residents
     .filter(resident => resident.apartmentId === form.value.apartmentId)
     .map(resident => ({
       label: `${resident.lastName} ${resident.firstName}`,
       value: resident.id
     }))
+  console.log('Доступные жильцы для формы:', filteredResidents)
+  return filteredResidents
 })
 
 const availableUtilities = computed(() => {
@@ -198,16 +210,23 @@ const availableUtilities = computed(() => {
 
 // Методы
 const handleBuildingChange = async (buildingId) => {
+  console.log('Обработка изменения здания:', buildingId)
   form.value.apartmentId = ''
   form.value.residentId = ''
   form.value.services = {}
-  await apartmentsStore.fetchApartments({ buildingId })
-  await utilitiesStore.fetchUtilities({ buildingId })
+  await Promise.all([
+    apartmentsStore.fetchApartments({ buildingId }),
+    utilitiesStore.fetchUtilities({ buildingId, status: 'active' })
+  ])
+  console.log('Загружено квартир:', apartmentsStore.apartments.length)
+  console.log('Загружено услуг:', utilitiesStore.utilities.length)
 }
 
 const handleApartmentChange = async (apartmentId) => {
+  console.log('Обработка изменения квартиры:', apartmentId)
   form.value.residentId = ''
   await residentsStore.fetchResidents({ apartmentId })
+  console.log('Загружено жильцов:', residentsStore.residents.length)
 }
 
 const calculateServiceAmount = (utility) => {
@@ -223,6 +242,18 @@ const calculateTotal = () => {
   form.value.total = Object.values(form.value.services).reduce((sum, service) => 
     sum + (service.amount || 0), 0
   )
+}
+
+const initializeServicesForNewInvoice = () => {
+  // Инициализируем услуги для нового счета
+  const servicesObj = {}
+  availableUtilities.value.forEach(utility => {
+    servicesObj[utility.id] = {
+      consumption: 0,
+      amount: 0
+    }
+  })
+  form.value.services = servicesObj
 }
 
 const saveInvoice = async () => {
@@ -263,8 +294,8 @@ const saveInvoice = async () => {
       ...form.value,
       services: Object.entries(form.value.services).map(([utilityId, data]) => ({
         utilityId,
-        consumption: data.consumption,
-        amount: data.amount
+        consumption: parseFloat(data.consumption) || 0,
+        amount: parseFloat(data.amount) || 0
       }))
     }
 
@@ -295,32 +326,98 @@ const saveInvoice = async () => {
 }
 
 // Наблюдатели
-watch(() => props.show, (newValue) => {
-  if (newValue && props.editingInvoice) {
-    form.value = { ...props.editingInvoice }
-  } else if (newValue) {
-    form.value = {
-      buildingId: '',
-      apartmentId: '',
-      residentId: '',
-      period: {
-        month: new Date().getMonth() + 1,
-        year: new Date().getFullYear()
-      },
-      services: {},
-      total: 0,
-      status: 'pending',
-      date: new Date().toISOString()
+watch(() => props.show, async (newValue) => {
+  if (newValue) {
+    if (props.editingInvoice) {
+      // Режим редактирования
+      console.log('Редактирование счета:', props.editingInvoice)
+      form.value = { ...props.editingInvoice }
+      
+      // Загружаем связанные данные последовательно
+      if (props.editingInvoice.buildingId) {
+        console.log('Загружаем данные для здания при редактировании:', props.editingInvoice.buildingId)
+        await handleBuildingChange(props.editingInvoice.buildingId)
+        form.value.buildingId = props.editingInvoice.buildingId
+      }
+      
+      if (props.editingInvoice.apartmentId) {
+        console.log('Загружаем данные для квартиры при редактировании:', props.editingInvoice.apartmentId)
+        await handleApartmentChange(props.editingInvoice.apartmentId)
+        form.value.apartmentId = props.editingInvoice.apartmentId
+      }
+      
+      if (props.editingInvoice.residentId) {
+        console.log('Устанавливаем жильца при редактировании:', props.editingInvoice.residentId)
+        form.value.residentId = props.editingInvoice.residentId
+      }
+      
+      // Инициализируем услуги для редактирования после загрузки данных
+      if (props.editingInvoice.services && Array.isArray(props.editingInvoice.services)) {
+        console.log('Инициализируем услуги для редактирования:', props.editingInvoice.services)
+        // Преобразуем массив услуг в объект для формы
+        const servicesObj = {}
+        props.editingInvoice.services.forEach(service => {
+          servicesObj[service.utilityId] = {
+            consumption: service.consumption || 0,
+            amount: service.amount || 0
+          }
+        })
+        form.value.services = servicesObj
+        calculateTotal()
+      }
+      
+      console.log('Итоговая форма при редактировании:', form.value)
+    } else {
+      // Режим создания нового счета
+      console.log('Создание нового счета с данными:', {
+        selectedBuilding: props.selectedBuilding,
+        selectedApartment: props.selectedApartment,
+        selectedResident: props.selectedResident
+      })
+      
+      form.value = {
+        buildingId: props.selectedBuilding || '',
+        apartmentId: props.selectedApartment || '',
+        residentId: props.selectedResident || '',
+        period: {
+          month: new Date().getMonth() + 1,
+          year: new Date().getFullYear()
+        },
+        services: {},
+        total: 0,
+        status: 'pending',
+        date: new Date().toISOString()
+      }
+      
+      // Загружаем данные для выбранных значений последовательно
+      if (props.selectedBuilding) {
+        console.log('Загружаем данные для здания:', props.selectedBuilding)
+        await handleBuildingChange(props.selectedBuilding)
+        form.value.buildingId = props.selectedBuilding
+        // Инициализируем услуги для нового счета
+        initializeServicesForNewInvoice()
+      }
+      
+      if (props.selectedApartment) {
+        console.log('Загружаем данные для квартиры:', props.selectedApartment)
+        await handleApartmentChange(props.selectedApartment)
+        form.value.apartmentId = props.selectedApartment
+      }
+      
+      if (props.selectedResident) {
+        console.log('Устанавливаем жильца:', props.selectedResident)
+        form.value.residentId = props.selectedResident
+      }
+      
+      console.log('Итоговая форма после инициализации:', form.value)
     }
   }
 })
 
 // Инициализация
 onMounted(async () => {
-  await Promise.all([
-    buildingsStore.fetchBuildings(),
-    utilitiesStore.fetchUtilities()
-  ])
+  await buildingsStore.fetchBuildings()
+  // Коммунальные услуги загружаются при выборе здания
 })
 </script>
 
